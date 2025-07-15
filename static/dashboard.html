@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commercial Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: #f8f9fa; }
+        .dashboard-nav { margin-bottom: 2rem; }
+        .kpi-card { min-width: 180px; margin-bottom: 1rem; }
+        .kpi-value { font-size: 2rem; font-weight: bold; }
+        .sparkline { height: 30px; }
+        .chart-container { height: 200px; }
+        .ros-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.1rem;
+            z-index: 2;
+            padding: 0.4em 0.8em;
+        }
+        .territory-card { position: relative; }
+        @media (max-width: 767px) {
+            .kpi-card { min-width: 100%; }
+        }
+        canvas { border: 2px solid red !important; }
+    </style>
+</head>
+<body>
+<div class="container-fluid py-3">
+    <!-- Global Time Period Selector -->
+    <div class="row mb-3">
+        <div class="col-12 d-flex align-items-center justify-content-between">
+            <div class="fw-bold fs-5">Dashboard</div>
+            <div>
+                <label for="periodSelector" class="me-2 fw-semibold">Time Period:</label>
+                <select id="periodSelector" class="form-select d-inline-block w-auto">
+                    <option value="previous_month">Previous Month</option>
+                    <option value="current_month">Current Month</option>
+                    <option value="qtd">Quarter-to-Date</option>
+                    <option value="ytd" selected>Year-to-Date</option>
+                    <option value="t12m">Trailing 12 Months</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white rounded dashboard-nav">
+        <a class="navbar-brand fw-bold" href="#">Commercial Dashboard</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link active" href="#" onclick="showSection('company')">Company</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('territories')">Territories</a></li>
+                <li class="nav-item"><a class="nav-link" href="#" onclick="showSection('accounts')">Accounts</a></li>
+                <li class="nav-item"><a class="nav-link" href="/account-table" target="_blank">Account Table</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Company Section -->
+    <div id="section-company">
+        <h2 class="mb-1">Company Overview</h2>
+        <div class="mb-3 text-muted" id="company-period-label">Period: Year-to-Date</div>
+        <div class="row row-cols-1 row-cols-md-4 g-4 mb-4">
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">$3,350,126</div>
+                        <div class="text-muted">Total Income (YTD)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">$730,094</div>
+                        <div class="text-muted">COGS (YTD)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">$2,620,032</div>
+                        <div class="text-muted">Gross Profit (YTD)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">$750,000</div>
+                        <div class="text-muted">Net Income (YTD)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mb-4">
+            <div class="col-lg-8 mb-4 mb-lg-0">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Revenue by Month (YTD)</h5>
+                        <div class="chart-container">
+                            <canvas id="companyRevenueByMonthChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Key Ratios</h5>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">TAT: <span class="float-end">50.4 hours</span></li>
+                            <li class="list-group-item">COS %: <span class="float-end">38%</span></li>
+                            <li class="list-group-item">Digital Orders %: <span class="float-end">62%</span></li>
+                            <li class="list-group-item">Active Accounts: <span class="float-end">1,200</span></li>
+                            <li class="list-group-item">Revenue Per Sample: <span class="float-end">$125</span></li>
+                            <li class="list-group-item">Collection %: <span class="float-end">97%</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Top 10 Practices by Revenue</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                        <tr>
+                            <th>Practice</th>
+                            <th># of Samples</th>
+                            <th>Revenue</th>
+                            <th>Territory</th>
+                            <th>Rep</th>
+                            <th>Collection %</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Sunrise Family Medicine');return false;">Sunrise Family Medicine</a></td><td>180</td><td>$25,000</td><td>Alpha</td><td>Chad Molick</td><td>98%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Green Valley Clinic');return false;">Green Valley Clinic</a></td><td>160</td><td>$22,500</td><td>Charlie</td><td>Tim Wilbanks</td><td>97%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Downtown Pediatrics');return false;">Downtown Pediatrics</a></td><td>150</td><td>$21,000</td><td>Bravo</td><td>Jessy Sorensen</td><td>99%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Westside Health Group');return false;">Westside Health Group</a></td><td>140</td><td>$19,800</td><td>Delta</td><td>Alex Kim</td><td>96%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Northside Family Care');return false;">Northside Family Care</a></td><td>135</td><td>$18,900</td><td>Echo</td><td>Maria Lopez</td><td>95%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Central Medical Partners');return false;">Central Medical Partners</a></td><td>130</td><td>$17,500</td><td>Foxtrot</td><td>Sam Patel</td><td>97%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Eastview Pediatrics');return false;">Eastview Pediatrics</a></td><td>125</td><td>$16,800</td><td>Golf</td><td>Linda Tran</td><td>98%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Southtown Clinic');return false;">Southtown Clinic</a></td><td>120</td><td>$15,600</td><td>Hotel</td><td>Brian Lee</td><td>96%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Riverbend Medical');return false;">Riverbend Medical</a></td><td>115</td><td>$14,900</td><td>India</td><td>Olivia Chen</td><td>95%</td></tr>
+                        <tr><td><a href="#" onclick="showFinancialClassModal('Oakwood Family Practice');return false;">Oakwood Family Practice</a></td><td>110</td><td>$14,200</td><td>Juliet</td><td>David Park</td><td>97%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Territories Section -->
+    <div id="section-territories" style="display:none;">
+        <h2 class="mb-1">Territories Overview</h2>
+        <div class="mb-3 text-muted" id="territories-period-label">Period: Year-to-Date</div>
+        <!-- Summary KPI Cards -->
+        <div class="row row-cols-1 row-cols-md-4 g-4 mb-4">
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">$581,604</div>
+                        <div class="text-muted">Total Revenue</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">41%</div>
+                        <div class="text-muted">Total GP%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">33%</div>
+                        <div class="text-muted">Total COS%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center bg-light">
+                    <div class="card-body">
+                        <div class="kpi-value">54%</div>
+                        <div class="text-muted">Total Collection %</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ROS by Territory Bar Chart -->
+        <div class="row mb-4">
+            <div class="col-lg-8 mx-auto">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">ROS (Return on Spend) by Territory</h5>
+                        <div class="chart-container" style="height:250px;">
+                            <canvas id="territoryROSBarChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Territory Cards with Expandable Details -->
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-4">
+            <!-- Alpha -->
+            <div class="col">
+                <div class="card h-100 territory-card" data-territory="alpha">
+                    <span class="ros-badge badge bg-success" title="Return on Spend">ROS: 0.8</span>
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">Alpha <span class="text-muted small">(Joe/Chad)</span></h5>
+                        <div class="mb-2">Revenue: <strong>$195,874</strong></div>
+                        <div class="mb-2">Income: <span class="badge bg-success">$XX,XXX</span></div>
+                        <div class="mb-2">COGS: <span class="badge bg-success">$45,227</span></div>
+                        <div class="mb-2">GP%: <span class="badge bg-success">77%</span></div>
+                        <div class="mb-2">Collection: <span class="badge bg-warning text-dark">59%</span></div>
+                        <div class="mb-2">SPD: 96 &nbsp; RPS: 107.23 &nbsp; BPS: 176.21</div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2 text-muted small">Qtr</div>
+                            <canvas id="alphaQtrSpark" width="80" height="30"></canvas>
+                            <div class="ms-3 me-2 text-muted small">YTD</div>
+                            <canvas id="alphaYTDSpark" width="80" height="30"></canvas>
+                        </div>
+                        <button class="btn btn-link p-0 mt-2" type="button" onclick="toggleTerritoryDetails('alpha')">
+                            <span id="alpha-expand-label">Show Details</span>
+                        </button>
+                        <div class="territory-details mt-3" id="alpha-details" style="display:none;">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Headcount: 7</li>
+                                <li class="list-group-item">Total Expenses: $XX,XXX</li>
+                                <li class="list-group-item"># of Customers: 55</li>
+                                <li class="list-group-item">COGS: $45,227</li>
+                                <li class="list-group-item">Wages: $17,908</li>
+                                <li class="list-group-item">Supplies: $22,275</li>
+                                <li class="list-group-item">Shipping: $7,388</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Repeat for Bravo -->
+            <div class="col">
+                <div class="card h-100 territory-card" data-territory="bravo">
+                    <span class="ros-badge badge bg-success" title="Return on Spend">ROS: 1.5</span>
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">Bravo <span class="text-muted small">(Jessy/Collin)</span></h5>
+                        <div class="mb-2">Revenue: <strong>$133,202</strong></div>
+                        <div class="mb-2">Income: <span class="badge bg-success">$66,601</span></div>
+                        <div class="mb-2">GP%: <span class="badge bg-success">50%</span> &nbsp; COS%: <span class="badge bg-warning text-dark">24%</span></div>
+                        <div class="mb-2">Collection: <span class="badge bg-warning text-dark">57%</span></div>
+                        <div class="mb-2">SPD: 63 &nbsp; RPS: 107.20 &nbsp; BPS: 184.73</div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2 text-muted small">Qtr</div>
+                            <canvas id="bravoQtrSpark" width="80" height="30"></canvas>
+                            <div class="ms-3 me-2 text-muted small">YTD</div>
+                            <canvas id="bravoYTDSpark" width="80" height="30"></canvas>
+                        </div>
+                        <button class="btn btn-link p-0 mt-2" type="button" onclick="toggleTerritoryDetails('bravo')">
+                            <span id="bravo-expand-label">Show Details</span>
+                        </button>
+                        <div class="territory-details mt-3" id="bravo-details" style="display:none;">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Headcount: 5</li>
+                                <li class="list-group-item">Total Expenses: $44,000</li>
+                                <li class="list-group-item"># of Customers: 41</li>
+                                <li class="list-group-item">Collection %: 57%</li>
+                                <li class="list-group-item">COGS: $20,000</li>
+                                <li class="list-group-item">Wages: $18,000</li>
+                                <li class="list-group-item">Other Expenses: $6,000</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Repeat for Charlie -->
+            <div class="col">
+                <div class="card h-100 territory-card" data-territory="charlie">
+                    <span class="ros-badge badge bg-warning text-dark" title="Return on Spend">ROS: 0.8</span>
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">Charlie <span class="text-muted small">(Tim)</span></h5>
+                        <div class="mb-2">Revenue: <strong>$42,662</strong></div>
+                        <div class="mb-2">Income: <span class="badge bg-warning text-dark">$12,799</span></div>
+                        <div class="mb-2">GP%: <span class="badge bg-danger">30%</span> &nbsp; COS%: <span class="badge bg-danger">48%</span></div>
+                        <div class="mb-2">Collection: <span class="badge bg-warning text-dark">55%</span></div>
+                        <div class="mb-2">SPD: 20 &nbsp; RPS: 101.68 &nbsp; BPS: 169.36</div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2 text-muted small">Qtr</div>
+                            <canvas id="charlieQtrSpark" width="80" height="30"></canvas>
+                            <div class="ms-3 me-2 text-muted small">YTD</div>
+                            <canvas id="charlieYTDSpark" width="80" height="30"></canvas>
+                        </div>
+                        <button class="btn btn-link p-0 mt-2" type="button" onclick="toggleTerritoryDetails('charlie')">
+                            <span id="charlie-expand-label">Show Details</span>
+                        </button>
+                        <div class="territory-details mt-3" id="charlie-details" style="display:none;">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Headcount: 3</li>
+                                <li class="list-group-item">Total Expenses: $16,000</li>
+                                <li class="list-group-item"># of Customers: 5</li>
+                                <li class="list-group-item">Collection %: 55%</li>
+                                <li class="list-group-item">COGS: $8,000</li>
+                                <li class="list-group-item">Wages: $6,000</li>
+                                <li class="list-group-item">Other Expenses: $2,000</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Repeat for Delta -->
+            <div class="col">
+                <div class="card h-100 territory-card" data-territory="delta">
+                    <span class="ros-badge badge bg-warning text-dark" title="Return on Spend">ROS: 0.7</span>
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">Delta <span class="text-muted small">(Jay)</span></h5>
+                        <div class="mb-2">Revenue: <strong>$32,581</strong></div>
+                        <div class="mb-2">Income: <span class="badge bg-warning text-dark">$11,403</span></div>
+                        <div class="mb-2">GP%: <span class="badge bg-warning text-dark">35%</span> &nbsp; COS%: <span class="badge bg-danger">54%</span></div>
+                        <div class="mb-2">Collection: <span class="badge bg-success">61%</span></div>
+                        <div class="mb-2">SPD: 13 &nbsp; RPS: 104.73 &nbsp; BPS: 188.73</div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2 text-muted small">Qtr</div>
+                            <canvas id="deltaQtrSpark" width="80" height="30"></canvas>
+                            <div class="ms-3 me-2 text-muted small">YTD</div>
+                            <canvas id="deltaYTDSpark" width="80" height="30"></canvas>
+                        </div>
+                        <button class="btn btn-link p-0 mt-2" type="button" onclick="toggleTerritoryDetails('delta')">
+                            <span id="delta-expand-label">Show Details</span>
+                        </button>
+                        <div class="territory-details mt-3" id="delta-details" style="display:none;">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Headcount: 2</li>
+                                <li class="list-group-item">Total Expenses: $16,000</li>
+                                <li class="list-group-item"># of Customers: 6</li>
+                                <li class="list-group-item">Collection %: 61%</li>
+                                <li class="list-group-item">COGS: $7,000</li>
+                                <li class="list-group-item">Wages: $7,000</li>
+                                <li class="list-group-item">Other Expenses: $2,000</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Repeat for Echo -->
+            <div class="col">
+                <div class="card h-100 territory-card" data-territory="echo">
+                    <span class="ros-badge badge bg-success" title="Return on Spend">ROS: 1.2</span>
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">Echo <span class="text-muted small">(Kraig/Brooke)</span></h5>
+                        <div class="mb-2">Revenue: <strong>$113,725</strong></div>
+                        <div class="mb-2">Income: <span class="badge bg-warning text-dark">$38,667</span></div>
+                        <div class="mb-2">GP%: <span class="badge bg-warning text-dark">34%</span> &nbsp; COS%: <span class="badge bg-danger">40%</span></div>
+                        <div class="mb-2">Collection: <span class="badge bg-danger">51%</span></div>
+                        <div class="mb-2">SPD: 53 &nbsp; RPS: 108.56 &nbsp; BPS: 198.57</div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2 text-muted small">Qtr</div>
+                            <canvas id="echoQtrSpark" width="80" height="30"></canvas>
+                            <div class="ms-3 me-2 text-muted small">YTD</div>
+                            <canvas id="echoYTDSpark" width="80" height="30"></canvas>
+                        </div>
+                        <button class="btn btn-link p-0 mt-2" type="button" onclick="toggleTerritoryDetails('echo')">
+                            <span id="echo-expand-label">Show Details</span>
+                        </button>
+                        <div class="territory-details mt-3" id="echo-details" style="display:none;">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Headcount: 4</li>
+                                <li class="list-group-item">Total Expenses: $32,000</li>
+                                <li class="list-group-item"># of Customers: 33</li>
+                                <li class="list-group-item">Collection %: 51%</li>
+                                <li class="list-group-item">COGS: $15,000</li>
+                                <li class="list-group-item">Wages: $12,000</li>
+                                <li class="list-group-item">Other Expenses: $5,000</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Repeat for Foxtrot -->
+            <div class="col">
+                <div class="card h-100 territory-card" data-territory="foxtrot">
+                    <span class="ros-badge badge bg-danger" title="Return on Spend">ROS: 0.2</span>
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">Foxtrot <span class="text-muted small">(Kip)</span></h5>
+                        <div class="mb-2">Revenue: <strong>$63,560</strong></div>
+                        <div class="mb-2">Income: <span class="badge bg-danger">$636</span></div>
+                        <div class="mb-2">GP%: <span class="badge bg-danger">1%</span> &nbsp; COS%: <span class="badge bg-danger">63%</span></div>
+                        <div class="mb-2">Collection: <span class="badge bg-danger">43%</span></div>
+                        <div class="mb-2">SPD: 38 &nbsp; RPS: 89.11 &nbsp; BPS: 192.72</div>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2 text-muted small">Qtr</div>
+                            <canvas id="foxtrotQtrSpark" width="80" height="30"></canvas>
+                            <div class="ms-3 me-2 text-muted small">YTD</div>
+                            <canvas id="foxtrotYTDSpark" width="80" height="30"></canvas>
+                        </div>
+                        <button class="btn btn-link p-0 mt-2" type="button" onclick="toggleTerritoryDetails('foxtrot')">
+                            <span id="foxtrot-expand-label">Show Details</span>
+                        </button>
+                        <div class="territory-details mt-3" id="foxtrot-details" style="display:none;">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">Headcount: 3</li>
+                                <li class="list-group-item">Total Expenses: $32,000</li>
+                                <li class="list-group-item"># of Customers: 12</li>
+                                <li class="list-group-item">Collection %: 43%</li>
+                                <li class="list-group-item">COGS: $10,000</li>
+                                <li class="list-group-item">Wages: $15,000</li>
+                                <li class="list-group-item">Other Expenses: $7,000</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Existing Territory Table (moved below new visualizations) -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Territory Table</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                        <tr>
+                            <th>Territory</th>
+                            <th>Samples</th>
+                            <th>Revenue</th>
+                            <th>Practices</th>
+                            <th>Rep</th>
+                            <th>Collection %</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr><td>Alpha</td><td>1,200</td><td>$350,000</td><td>40</td><td>Chad Molick</td><td>98%</td></tr>
+                        <tr><td>Charlie</td><td>950</td><td>$220,000</td><td>32</td><td>Tim Wilbanks</td><td>95%</td></tr>
+                        <tr><td>Bravo</td><td>1,100</td><td>$260,000</td><td>38</td><td>Jessy Sorensen</td><td>99%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accounts Section -->
+    <div id="section-accounts" style="display:none;">
+        <h2 class="mb-1">Accounts Overview</h2>
+        <div class="mb-3 text-muted" id="accounts-period-label">Period: Year-to-Date</div>
+        <!-- Territory Selector -->
+        <div class="mb-3 d-flex align-items-center">
+            <label for="accounts-territory-selector" class="me-2 fw-semibold">Territory:</label>
+            <select id="accounts-territory-selector" class="form-select d-inline-block w-auto">
+                <option value="all">All Territories</option>
+                <option value="Alpha">Alpha</option>
+                <option value="Bravo">Bravo</option>
+                <option value="Charlie">Charlie</option>
+                <option value="Delta">Delta</option>
+                <option value="Echo">Echo</option>
+                <option value="Foxtrot">Foxtrot</option>
+            </select>
+            <span class="ms-3 text-muted" id="accounts-territory-label">Showing: All Territories</span>
+        </div>
+        <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
+            <div class="col">
+                <div class="card kpi-card text-center">
+                    <div class="card-body">
+                        <div class="kpi-value">120</div>
+                        <div class="text-muted">Sample Count</div>
+                        <canvas id="spark7" class="sparkline" width="120" height="30"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center">
+                    <div class="card-body">
+                        <div class="kpi-value">$15,000</div>
+                        <div class="text-muted">Charges Placed</div>
+                        <canvas id="spark8" class="sparkline" width="120" height="30"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card kpi-card text-center">
+                    <div class="card-body">
+                        <div class="kpi-value">98%</div>
+                        <div class="text-muted">Collection %</div>
+                        <canvas id="spark9" class="sparkline" width="120" height="30"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mb-4">
+            <div class="col-lg-8 mb-4 mb-lg-0">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">COGS Breakdown</h5>
+                        <div class="chart-container">
+                            <canvas id="cogsChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Income / Loss</h5>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item">Supplies: <span class="float-end">$2,000</span></li>
+                            <li class="list-group-item">Shipping: <span class="float-end">$500</span></li>
+                            <li class="list-group-item">Lab Wages: <span class="float-end">$3,000</span></li>
+                            <li class="list-group-item">Collector Wages: <span class="float-end">$1,200</span></li>
+                            <li class="list-group-item fw-bold">Total Income/Loss: <span class="float-end">$8,300</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Account Table</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                        <tr>
+                            <th>Practice</th>
+                            <th>BPS</th>
+                            <th>RPS</th>
+                            <th>Collection %</th>
+                            <th>Collector (Y/N)</th>
+                            <th>Income</th>
+                        </tr>
+                        </thead>
+                        <tbody id="accounts-table-body">
+                        <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Financial Class Breakdown Modal -->
+<div class="modal fade" id="financialClassModal" tabindex="-1" aria-labelledby="financialClassModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="financialClassModalLabel">Financial Class Breakdown</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="min-height:320px;">
+        <div class="mb-2" id="financialClassPeriod"></div>
+        <canvas id="financialClassPieChart" width="400" height="250" style="max-width:100%;max-height:250px;"></canvas>
+        <div id="financialClassLegend" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Navigation logic
+function showSection(section) {
+    document.getElementById('section-company').style.display = (section === 'company') ? '' : 'none';
+    document.getElementById('section-territories').style.display = (section === 'territories') ? '' : 'none';
+    document.getElementById('section-accounts').style.display = (section === 'accounts') ? '' : 'none';
+    // Update nav active state
+    document.querySelectorAll('.navbar-nav .nav-link').forEach(link => link.classList.remove('active'));
+    document.querySelector('.navbar-nav .nav-link[onclick*="' + section + '"]').classList.add('active');
+}
+
+// Initial section
+showSection('company');
+
+// API base URL
+const API_BASE_URL = '/api';
+
+// Function to get auth token (you'll need to implement authentication)
+function getAuthToken() {
+    // For now, return null - you'll need to implement proper auth
+    return localStorage.getItem('auth_token');
+}
+
+// Function to make authenticated API calls
+async function apiCall(endpoint, options = {}) {
+    const token = getAuthToken();
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+    };
+    
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            headers
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API call failed: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('API call error:', error);
+        throw error;
+    }
+}
+
+// Function to load dashboard data for a specific period
+async function loadDashboardData(periodType = 'ytd') {
+    try {
+        // Try the development endpoint first (no auth required)
+        const data = await fetch(`${API_BASE_URL}/dashboard/dev/mock-data?period_type=${periodType}`);
+        
+        if (!data.ok) {
+            throw new Error(`API call failed: ${data.status}`);
+        }
+        
+        const responseData = await data.json();
+        
+        // Update KPI cards
+        updateKPICards(responseData.financial_summary);
+        
+        // Update revenue chart
+        updateRevenueChart(responseData.monthly_revenue);
+        
+        // Update period labels
+        updatePeriodLabels(periodType);
+        
+        console.log('Dashboard data loaded:', responseData);
+        
+    } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+        // Fall back to mock data
+        loadMockData(periodType);
+    }
+}
+
+// Function to update KPI cards
+function updateKPICards(financialSummary) {
+    const kpiCards = document.querySelectorAll('.kpi-card .kpi-value');
+    if (kpiCards.length >= 4) {
+        kpiCards[0].textContent = `$${financialSummary.total_revenue.toLocaleString()}`;
+        kpiCards[1].textContent = `$${financialSummary.total_cogs.toLocaleString()}`;
+        kpiCards[2].textContent = `$${financialSummary.gross_profit.toLocaleString()}`;
+        kpiCards[3].textContent = `$${financialSummary.net_profit.toLocaleString()}`;
+    }
+}
+
+// Function to update revenue chart
+function updateRevenueChart(monthlyData) {
+    const ctx = document.getElementById('companyRevenueByMonthChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (window.revenueChart) {
+        window.revenueChart.destroy();
+    }
+    
+    const labels = monthlyData.map(item => item.month_name);
+    const revenueData = monthlyData.map(item => item.revenue);
+    const incomeData = monthlyData.map(item => item.income || 0);
+    
+    window.revenueChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Revenue',
+                    data: revenueData,
+                    backgroundColor: '#0d6efd',
+                    order: 1
+                },
+                {
+                    label: 'Income',
+                    data: incomeData,
+                    backgroundColor: '#198754',
+                    order: 2
+                },
+                {
+                    label: 'Trend',
+                    type: 'line',
+                    data: revenueData,
+                    borderColor: '#fd7e14',
+                    backgroundColor: 'rgba(253,126,20,0.1)',
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    order: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: true } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+
+// Function to update period labels
+function updatePeriodLabels(periodType) {
+    const periodLabels = document.querySelectorAll('[id$="-period-label"]');
+    const periodText = getPeriodText(periodType);
+    
+    periodLabels.forEach(label => {
+        label.textContent = `Period: ${periodText}`;
+    });
+}
+
+// Function to get period text
+function getPeriodText(periodType) {
+    const periodMap = {
+        'ytd': 'Year-to-Date',
+        'previous_month': 'Previous Month',
+        'current_month': 'Current Month',
+        'qtd': 'Quarter-to-Date',
+        't12m': 'Trailing 12 Months'
+    };
+    return periodMap[periodType] || 'Year-to-Date';
+}
+
+// Function to load mock data (fallback)
+function loadMockData(periodType) {
+    console.log('Loading mock data for period:', periodType);
+    
+    // Mock data based on period type
+    const mockData = {
+        ytd: {
+            financial_summary: {
+                total_revenue: 3350126.0,
+                total_cogs: 730094.0,
+                total_expenses: 1870000.0,
+                gross_profit: 2620032.0,
+                net_profit: 750000.0
+            },
+            monthly_revenue: [
+                {month: 1, month_name: 'Jan', revenue: 601822, income: 120000},
+                {month: 2, month_name: 'Feb', revenue: 699211, income: 150000},
+                {month: 3, month_name: 'Mar', revenue: 749359, income: 180000},
+                {month: 4, month_name: 'Apr', revenue: 680788, income: 160000},
+                {month: 5, month_name: 'May', revenue: 619946, income: 140000}
+            ]
+        },
+        previous_month: {
+            financial_summary: {
+                total_revenue: 619946.0,
+                total_cogs: 156094.0,
+                total_expenses: 400000.0,
+                gross_profit: 463852.0,
+                net_profit: 63852.0
+            },
+            monthly_revenue: [
+                {month: 5, month_name: 'May', revenue: 619946, income: 140000}
+            ]
+        }
+    };
+    
+    const data = mockData[periodType] || mockData.ytd;
+    updateKPICards(data.financial_summary);
+    updateRevenueChart(data.monthly_revenue);
+    updatePeriodLabels(periodType);
+}
+
+// Period selector change handler
+document.getElementById('periodSelector').addEventListener('change', function() {
+    const periodType = this.value;
+    loadDashboardData(periodType);
+});
+
+// Load initial data
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData('ytd');
+});
+
+// Chart.js sample data
+const sparkData = [
+    // For the first three sparklines, use two lines: actual and budget
+    { actual: [10, 12, 14, 13, 15, 17, 16], budget: [11, 13, 13, 14, 16, 16, 17] }, // Revenue
+    { actual: [8, 9, 10, 11, 10, 12, 13], budget: [9, 10, 11, 12, 11, 13, 14] },   // Expense
+    { actual: [5, 7, 8, 7, 9, 10, 11], budget: [6, 8, 8, 8, 10, 11, 12] },         // Income
+    // The rest are single-line
+    [12, 13, 15, 14, 16, 18, 17],
+    [7, 8, 9, 10, 11, 12, 13],
+    [6, 7, 8, 9, 10, 11, 12],
+    [20, 22, 21, 23, 25, 24, 26],
+    [15, 16, 17, 18, 19, 20, 21],
+    [10, 11, 12, 13, 14, 15, 16]
+];
+for (let i = 1; i <= 9; i++) {
+    const ctx = document.getElementById('spark' + i);
+    if (ctx) {
+        let chartData, datasets;
+        if (i <= 3) {
+            // Two-line comparator sparklines
+            chartData = sparkData[i-1];
+            datasets = [
+                {
+                    data: chartData.actual,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    tension: 0.4
+                },
+                {
+                    data: chartData.budget,
+                    borderColor: '#adb5bd',
+                    backgroundColor: 'rgba(173,181,189,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: false,
+                    borderDash: [4,2],
+                    tension: 0.4
+                }
+            ];
+        } else {
+            // Single-line sparklines
+            datasets = [{
+                data: sparkData[i-1],
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13,110,253,0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.4
+            }];
+        }
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array((i <= 3 ? chartData.actual.length : sparkData[i-1].length)).fill(''),
+                datasets: datasets
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: { x: { display: false }, y: { display: false } },
+                elements: { line: { borderJoinStyle: 'round' } },
+                responsive: false
+            }
+        });
+    }
+}
+
+// Main charts - now loaded dynamically via loadDashboardData()
+
+new Chart(document.getElementById('territoryRevenueBarChart'), {
+    type: 'bar',
+    data: {
+        labels: ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'],
+        datasets: [{
+            label: 'Revenue',
+            data: [195874, 133202, 42662, 32581, 113725, 63560],
+            backgroundColor: [
+                '#0d6efd', '#6c757d', '#ffc107', '#198754', '#fd7e14', '#6610f2'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+
+new Chart(document.getElementById('cogsChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Supplies', 'Shipping', 'Lab Wages', 'Collector Wages'],
+        datasets: [{
+            data: [2000, 500, 3000, 1200],
+            backgroundColor: ['#0d6efd', '#6c757d', '#ffc107', '#198754'],
+        }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+});
+
+// Sparklines for each territory (mock data)
+const territorySparklines = {
+    alphaQtrSpark:   [90, 100, 110, 120, 130, 125, 135],
+    alphaYTDSpark:   [80, 85, 90, 100, 110, 120, 130],
+    bravoQtrSpark:   [60, 70, 80, 90, 100, 110, 120],
+    bravoYTDSpark:   [50, 60, 70, 80, 90, 100, 110],
+    charlieQtrSpark: [20, 25, 30, 35, 40, 38, 42],
+    charlieYTDSpark: [10, 15, 20, 25, 30, 35, 40],
+    deltaQtrSpark:   [10, 12, 14, 16, 18, 17, 19],
+    deltaYTDSpark:   [5, 7, 9, 11, 13, 15, 17],
+    echoQtrSpark:    [50, 60, 70, 80, 90, 100, 110],
+    echoYTDSpark:    [40, 50, 60, 70, 80, 90, 100],
+    foxtrotQtrSpark: [30, 35, 40, 45, 50, 48, 52],
+    foxtrotYTDSpark: [20, 25, 30, 35, 40, 45, 50]
+};
+Object.entries(territorySparklines).forEach(([id, data]) => {
+    const ctx = document.getElementById(id);
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(data.length).fill(''),
+                datasets: [{
+                    data: data,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: { x: { display: false }, y: { display: false } },
+                elements: { line: { borderJoinStyle: 'round' } },
+                responsive: false
+            }
+        });
+    }
+});
+
+// ROS by Territory Bar Chart
+new Chart(document.getElementById('territoryROSBarChart'), {
+    type: 'bar',
+    data: {
+        labels: ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'],
+        datasets: [{
+            label: 'ROS',
+            data: [1.8, 1.5, 0.8, 0.7, 1.2, 0.2],
+            backgroundColor: [
+                '#0d6efd', '#6c757d', '#ffc107', '#198754', '#fd7e14', '#6610f2'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+
+// Expandable territory card logic
+function toggleTerritoryDetails(territory) {
+    const details = document.getElementById(territory + '-details');
+    const label = document.getElementById(territory + '-expand-label');
+    if (details.style.display === 'none') {
+        details.style.display = '';
+        label.textContent = 'Hide Details';
+    } else {
+        details.style.display = 'none';
+        label.textContent = 'Show Details';
+    }
+}
+
+// Mock data for accounts by territory
+const accountsData = {
+    Alpha: [
+        { practice: 'Sunrise Family Medicine', bps: 176.21, rps: 107.23, collection: '98%', collector: 'Y', income: '$3,000' },
+        { practice: 'Green Valley Clinic', bps: 184.73, rps: 107.20, collection: '95%', collector: 'N', income: '$2,500' }
+    ],
+    Bravo: [
+        { practice: 'Downtown Pediatrics', bps: 169.36, rps: 101.68, collection: '99%', collector: 'Y', income: '$2,700' },
+        { practice: 'Westside Health Group', bps: 188.73, rps: 104.73, collection: '96%', collector: 'N', income: '$2,000' }
+    ],
+    Charlie: [
+        { practice: 'Northside Family Care', bps: 198.57, rps: 108.56, collection: '92%', collector: 'Y', income: '$700' }
+    ],
+    Delta: [
+        { practice: 'Central Medical Partners', bps: 192.72, rps: 89.11, collection: '90%', collector: 'N', income: '$600' }
+    ],
+    Echo: [
+        { practice: 'Eastview Pediatrics', bps: 184.73, rps: 107.20, collection: '97%', collector: 'Y', income: '$1,500' }
+    ],
+    Foxtrot: [
+        { practice: 'Southtown Clinic', bps: 176.21, rps: 107.23, collection: '93%', collector: 'N', income: '$800' }
+    ],
+    all: [
+        { practice: 'Sunrise Family Medicine', bps: 176.21, rps: 107.23, collection: '98%', collector: 'Y', income: '$3,000' },
+        { practice: 'Green Valley Clinic', bps: 184.73, rps: 107.20, collection: '95%', collector: 'N', income: '$2,500' },
+        { practice: 'Downtown Pediatrics', bps: 169.36, rps: 101.68, collection: '99%', collector: 'Y', income: '$2,700' },
+        { practice: 'Westside Health Group', bps: 188.73, rps: 104.73, collection: '96%', collector: 'N', income: '$2,000' },
+        { practice: 'Northside Family Care', bps: 198.57, rps: 108.56, collection: '92%', collector: 'Y', income: '$700' },
+        { practice: 'Central Medical Partners', bps: 192.72, rps: 89.11, collection: '90%', collector: 'N', income: '$600' },
+        { practice: 'Eastview Pediatrics', bps: 184.73, rps: 107.20, collection: '97%', collector: 'Y', income: '$1,500' },
+        { practice: 'Southtown Clinic', bps: 176.21, rps: 107.23, collection: '93%', collector: 'N', income: '$800' }
+    ]
+};
+function renderAccountsTable(territory) {
+    const data = accountsData[territory] || [];
+    let rows = '';
+    data.forEach(acc => {
+        rows += `<tr><td>${acc.practice}</td><td>${acc.bps}</td><td>${acc.rps}</td><td>${acc.collection}</td><td>${acc.collector}</td><td>${acc.income}</td></tr>`;
+    });
+    document.getElementById('accounts-table-body').innerHTML = rows;
+}
+document.getElementById('accounts-territory-selector').addEventListener('change', function() {
+    const territory = this.value;
+    renderAccountsTable(territory);
+    document.getElementById('accounts-territory-label').textContent =
+        'Showing: ' + (territory === 'all' ? 'All Territories' : territory);
+});
+// Initial render
+renderAccountsTable('all');
+
+// Show modal and load financial class breakdown
+function showFinancialClassModal(practice, periodType = 'month') {
+  const modalEl = document.getElementById('financialClassModal');
+  const modal = new bootstrap.Modal(modalEl);
+  document.getElementById('financialClassModalLabel').textContent = `Financial Class Breakdown for ${practice}`;
+  document.getElementById('financialClassPeriod').textContent = '';
+  document.getElementById('financialClassLegend').innerHTML = '';
+  // Clear previous chart
+  if (window.financialClassPieChart) {
+    window.financialClassPieChart.destroy();
+  }
+  // Debug: Check Chart.js and canvas
+  console.log('Chart.js type:', typeof Chart);
+  // Fetch data
+  fetch(`/api/dashboard/financial-class-breakdown?practice=${encodeURIComponent(practice)}&period_type=${periodType}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.breakdown || data.breakdown.length === 0) {
+        document.getElementById('financialClassPeriod').textContent = data.period || '';
+        document.getElementById('financialClassLegend').innerHTML = '<div class="text-muted">No data available for this period.</div>';
+        return;
+      }
+      document.getElementById('financialClassPeriod').textContent = data.period;
+      const labels = data.breakdown.map(item => item.class);
+      const values = data.breakdown.map(item => item.revenue);
+      const percents = data.breakdown.map(item => item.percent);
+      const colors = [
+        '#0d6efd', '#6c757d', '#ffc107', '#198754', '#fd7e14', '#6610f2', '#adb5bd', '#dc3545', '#20c997', '#0dcaf0'
+      ];
+      // Render legend
+      let legendHtml = '';
+      data.breakdown.forEach((item, i) => {
+        legendHtml += `<div style="display:flex;align-items:center;margin-bottom:4px;">
+          <span style="display:inline-block;width:18px;height:18px;background:${colors[i]};border-radius:3px;margin-right:8px;"></span>
+          <span><b>${item.class}:</b> ${item.percent}% ($${item.revenue.toLocaleString()})</span>
+        </div>`;
+      });
+      document.getElementById('financialClassLegend').innerHTML = legendHtml;
+      // Render chart only after modal is fully shown
+      const renderChart = () => {
+        const canvas = document.getElementById('financialClassPieChart');
+        console.log('Pie chart canvas:', canvas);
+        if (!canvas) { console.error('Pie chart canvas not found!'); return; }
+        const ctx = canvas.getContext('2d');
+        console.log('Pie chart context:', ctx);
+        setTimeout(() => {
+          try {
+            window.financialClassPieChart = new Chart(ctx, {
+              type: 'pie',
+              data: {
+                labels: labels,
+                datasets: [{
+                  data: values,
+                  backgroundColor: colors.slice(0, labels.length),
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: { legend: { display: false } }
+              }
+            });
+            console.log('Pie chart created!');
+          } catch (e) {
+            console.error('Error creating pie chart:', e);
+          }
+          modalEl.removeEventListener('shown.bs.modal', renderChart);
+        }, 200);
+      };
+      modalEl.addEventListener('shown.bs.modal', renderChart);
+    });
+  modal.show();
+}
+</script>
+</body>
+</html> 

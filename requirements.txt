@@ -1,0 +1,44 @@
+# Flask and API
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-JWT-Extended==4.5.3
+Flask-SQLAlchemy==3.0.5
+
+# Database
+psycopg2-binary==2.9.7
+SQLAlchemy==2.0.21
+
+# Data Processing
+pandas==2.1.1
+numpy==1.24.3
+openpyxl==3.1.2
+
+# QuickBooks API
+intuit-oauth==1.2.4
+requests==2.31.0
+
+# ETL and Orchestration
+apache-airflow==2.7.1
+apache-airflow-providers-postgres==5.6.0
+
+# OpenAI and NLP
+openai==0.28.1
+langchain==0.0.267
+langchain-openai==0.0.2
+
+# Environment and Config
+python-dotenv==1.0.0
+pydantic==2.4.2
+
+# Testing
+pytest==7.4.2
+pytest-flask==1.2.0
+
+# Development
+black==23.9.1
+flake8==6.1.0
+pre-commit==3.5.0
+
+# Monitoring and Logging
+structlog==23.1.0
+sentry-sdk[flask]==1.32.0 
