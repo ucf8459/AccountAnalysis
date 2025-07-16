@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import calendar
 from app.services.qbo_service import QBOService
 from decimal import Decimal
+from dateutil.relativedelta import relativedelta
 
 load_dotenv()
 
@@ -885,58 +886,70 @@ def get_mock_account_table():
     except Exception as e:
         return jsonify({'error': f'Failed to get account table data: {str(e)}'}), 500
 
-def calculate_average_collection_pct(cursor, practice_name, start_date, max_periods=6):
+def calculate_average_collection_pct(cursor, practice_name, start_date, max_lookback=12, max_periods=6):
     """
-    Calculate average collection percentage for a practice across multiple historical periods.
-    Starts from 3 periods back and looks at up to 6 periods total.
-    Excludes zero collection periods and stops when hitting a zero collection period.
+    Skip the most recent 3 periods. Start with the first usable anchor period (placed > 0 and collected > 0) at least 3 months back. If not found, keep going back up to max_lookback months. If found, include it and up to 5 more usable periods further back (max 6 total). Return (average, periods_used).
     """
+    from datetime import timedelta
+    from dateutil.relativedelta import relativedelta
     collection_pcts = []
+    anchor_found = False
+    anchor_offset = 3
+    months_checked = 0
     periods_used = 0
-    
-    # Start from 3 periods back
-    for i in range(3, 3 + max_periods):
-        # Calculate the period i months back
-        target_month = (start_date.month - i) % 12 or 12
-        target_year = start_date.year if start_date.month > i else start_date.year - 1
-        
-        period_start = datetime(target_year, target_month, 1)
-        if target_month == 12:
-            period_end = datetime(target_year, 12, 31)
+    # Step 1: Find anchor period
+    for i in range(anchor_offset, max_lookback + 1):
+        target_date = start_date - relativedelta(months=i)
+        period_start = target_date.replace(day=1)
+        if period_start.month == 12:
+            period_end = period_start.replace(day=31)
         else:
-            period_end = datetime(target_year, target_month + 1, 1) - timedelta(days=1)
-        
-        # Get collection data for this period
+            period_end = (period_start + relativedelta(months=1)) - timedelta(days=1)
         cursor.execute('''
             SELECT COALESCE(SUM(sb.total_charges),0) as placed,
                    COALESCE(SUM(sb.total_payments),0) as collected
             FROM sample_billing sb
             JOIN account_data ad ON sb.client_account_number = ad.account_number
             WHERE ad.practice_name = %s 
-            AND sb.placement_date >= %s AND sb.placement_date <= %s
+            AND DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
         ''', (practice_name, period_start, period_end))
-        
         result = cursor.fetchone()
+        months_checked += 1
         if result:
             placed, collected = float(result[0]), float(result[1])
-            
-            if placed > 0:
-                collection_pct = collected / placed
-                if collection_pct > 0:  # Only include non-zero collection percentages
-                    collection_pcts.append(collection_pct)
-                    periods_used += 1
-                else:
-                    # Stop when we hit a zero collection period
-                    break
-            else:
-                # Stop when we hit a period with no placed revenue
+            if placed > 0 and collected > 0:
+                collection_pcts.append(collected / placed)
+                periods_used += 1
+                anchor_found = True
+                anchor_index = i
                 break
-        else:
-            # Stop when we hit a period with no data
-            break
-    
-    if collection_pcts:
-        return sum(collection_pcts) / len(collection_pcts), periods_used
+    # Step 2: If anchor found, look further back for up to 5 more usable periods
+    if anchor_found:
+        for j in range(anchor_index + 1, anchor_index + max_periods):
+            target_date = start_date - relativedelta(months=j)
+            period_start = target_date.replace(day=1)
+            if period_start.month == 12:
+                period_end = period_start.replace(day=31)
+            else:
+                period_end = (period_start + relativedelta(months=1)) - timedelta(days=1)
+            cursor.execute('''
+                SELECT COALESCE(SUM(sb.total_charges),0) as placed,
+                       COALESCE(SUM(sb.total_payments),0) as collected
+                FROM sample_billing sb
+                JOIN account_data ad ON sb.client_account_number = ad.account_number
+                WHERE ad.practice_name = %s 
+                AND DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
+            ''', (practice_name, period_start, period_end))
+            result = cursor.fetchone()
+            if result:
+                placed, collected = float(result[0]), float(result[1])
+                if placed > 0 and collected > 0:
+                    collection_pcts.append(collected / placed)
+                    periods_used += 1
+            if periods_used >= max_periods:
+                break
+        avg_collection = sum(collection_pcts) / len(collection_pcts) if collection_pcts else None
+        return avg_collection, periods_used
     else:
         return None, 0
 
@@ -959,14 +972,15 @@ def get_account_table_live():
         # Join sample_billing and account_data, group by practice and territory
         cursor.execute('''
             SELECT ad.practice_name, ad.territory,
-                   COALESCE(SUM(sb.total_charges),0) as placed_revenue,
+                   COALESCE(SUM(sb.initial_balance),0) as placed_revenue,
                    COUNT(DISTINCT sb.client_account_number) as sample_count
             FROM sample_billing sb
             JOIN account_data ad ON sb.client_account_number = ad.account_number
-            WHERE sb.placement_date >= %s AND sb.placement_date <= %s
+            WHERE DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
             GROUP BY ad.practice_name, ad.territory
         ''', (start_date, end_date))
         rows = cursor.fetchall()
+        print(f"[DEBUG] Number of (practice, territory) groups from SQL: {len(rows)}")
 
         # Get account counts per territory
         cursor.execute('''
@@ -976,14 +990,40 @@ def get_account_table_live():
         ''')
         territory_account_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
-        # --- Calculate average collection % per territory (unweighted, only for practices with collection % >= 90) ---
-        # REMOVED: Territory average logic - collection % should simply be the average of historical periods
+        # --- Calculate territory averages based on actual revenue/placed from practices with historical data ---
+        territory_actual_revenue = {}
+        territory_actual_placed = {}
+        
+        # First pass: collect actual revenue and placed amounts for practices with historical data
+        for row in rows:
+            practice_name, territory, placed_revenue, sample_count = row
+            avg_collection_pct, revenue_periods = calculate_average_collection_pct(cursor, practice_name, start_date)
+            
+            if avg_collection_pct is not None:  # Practice has historical data (blue badge)
+                if territory not in territory_actual_revenue:
+                    territory_actual_revenue[territory] = Decimal('0')
+                    territory_actual_placed[territory] = Decimal('0')
+                
+                placed_revenue_decimal = Decimal(str(placed_revenue))
+                actual_revenue = placed_revenue_decimal * Decimal(str(avg_collection_pct))
+                
+                territory_actual_revenue[territory] += actual_revenue
+                territory_actual_placed[territory] += placed_revenue_decimal
+        
+        # Calculate territory averages: actual revenue / actual placed
+        avg_territory_collection_pct = {}
+        for territory in territory_actual_revenue:
+            if territory_actual_placed[territory] > 0:
+                avg_territory_collection_pct[territory] = territory_actual_revenue[territory] / territory_actual_placed[territory]
+            else:
+                avg_territory_collection_pct[territory] = Decimal('0.6')
+        
         # --- End territory averages ---
 
         # --- Expenses by territory for the period ---
         # Determine month_year string for the period (e.g., 'March 2025')
         month_year = start_date.strftime('%B %Y')
-        # Get Expenses for each territory for the period (for CPS calculation)
+        # Get Expenses for each territory for the period (for EPS calculation)
         cursor.execute("""
             SELECT territory, amount FROM cogs_expense
             WHERE month_year = %s AND expense_type = 'Expense'
@@ -1000,30 +1040,55 @@ def get_account_table_live():
             SELECT ad.territory, COUNT(sb.client_account_number) as total_samples
             FROM sample_billing sb
             JOIN account_data ad ON sb.client_account_number = ad.account_number
-            WHERE sb.placement_date >= %s AND sb.placement_date <= %s
+            WHERE DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
             GROUP BY ad.territory
         ''', (start_date, end_date))
         samples_by_territory = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        # Calculate total collector costs per territory for the period from collectors table
+        cursor.execute('''
+            SELECT territory, SUM(june_amount) as total_collector_cost
+            FROM collectors
+            GROUP BY territory
+        ''')
+        collector_costs_by_territory = {row[0]: Decimal(str(row[1])) for row in cursor.fetchall()}
+        
+        # Calculate baseline EPS for each territory (excluding collector costs)
+        baseline_eps_by_territory = {}
+        for territory in expenses_by_territory:
+            total_expenses = expenses_by_territory[territory]
+            total_collector_cost = collector_costs_by_territory.get(territory, Decimal('0'))
+            total_samples = samples_by_territory.get(territory, 0)
+            
+            if total_samples > 0:
+                baseline_eps = (total_expenses - total_collector_cost) / total_samples
+            else:
+                baseline_eps = Decimal('0')
+            
+            baseline_eps_by_territory[territory] = baseline_eps
 
         result = []
         total_revenue = 0
         total_cogs = 0
         total_profit = 0
+        total_sales_expense = 0
+        total_net_income = 0
         total_collector_cost = 0
         total_samples = 0
-        total_collection_weighted = Decimal('0')
-        total_collection_weight = Decimal('0')
         
         for row in rows:
             practice_name, territory, placed_revenue, sample_count = row
-            avg_collection_pct, periods_used = calculate_average_collection_pct(cursor, practice_name, start_date)
-            # Collection % calculation - simply use the average of historical periods
+            avg_collection_pct, revenue_periods = calculate_average_collection_pct(cursor, practice_name, start_date)
+            # If no usable anchor, use territory average and set revenue_periods to 0
             if avg_collection_pct is not None:
                 collection_pct_str = f"{round(avg_collection_pct*100)}%"
                 used_collection_pct_decimal = Decimal(str(avg_collection_pct))
             else:
-                collection_pct_str = '< 90'
-                used_collection_pct_decimal = Decimal('0.9')
+                territory_avg = avg_territory_collection_pct.get(territory, Decimal('0.9'))
+                collection_pct_str = f"{round(territory_avg*100)}%"
+                used_collection_pct_decimal = territory_avg
+                revenue_periods = 0
+
             placed_revenue = Decimal(str(placed_revenue))
             revenue = placed_revenue * used_collection_pct_decimal
             rps = revenue / sample_count if sample_count > 0 else Decimal('0')
@@ -1035,80 +1100,107 @@ def get_account_table_live():
             cogs_per_sample = (territory_cogs / territory_samples) if territory_samples > 0 else Decimal('0')
             cogs_allocated = cogs_per_sample * sample_count
             
+            # Get collector status and cost from collectors table
+            cursor.execute("""
+                SELECT collector, june_amount FROM collectors 
+                WHERE practice LIKE %s
+                LIMIT 1
+            """, (f'%{practice_name}%',))
+            collector_result = cursor.fetchone()
+            collector = 'Y' if collector_result and collector_result[0] else 'N'
+            collector_cost = Decimal(str(collector_result[1])) if collector_result and collector_result[1] is not None else Decimal('0')
+            
             # Calculate additional fields
             profit = revenue - cogs_allocated
-            pps = profit / sample_count if sample_count > 0 else Decimal('0')
-            # CPS = territory expenses / territory samples (not per practice)
-            territory_expenses = expenses_by_territory.get(territory, Decimal('0'))
-            cps = (territory_expenses / territory_samples) if territory_samples > 0 else Decimal('0')
-            delta = pps - cps
+            gpps = profit / sample_count if sample_count > 0 else Decimal('0')
             
-            # Get collector status and cost
-            cursor.execute("""
-                SELECT collector, COALESCE(collector_cost, 0) FROM account_data 
-                WHERE practice_name = %s 
-                LIMIT 1
-            """, (practice_name,))
-            collector_result = cursor.fetchone()
-            collector = collector_result[0] if collector_result else 'N'
-            collector_cost = Decimal(str(collector_result[1])) if collector_result and collector_result[1] is not None else Decimal('0')
+            # New EPS calculation: baseline EPS + collector cost per sample (if practice has collector)
+            baseline_eps = baseline_eps_by_territory.get(territory, Decimal('0'))
+            collector_cost_per_sample = Decimal('0')
+            
+            if collector == 'Y' and sample_count > 0:
+                collector_cost_per_sample = collector_cost / sample_count
+            
+            eps = baseline_eps + collector_cost_per_sample
+            
+            # Calculate Sales Expense and Net Income
+            # Sales Expense = territory expenses allocated to this practice based on sample count
+            territory_expenses = expenses_by_territory.get(territory, Decimal('0'))
+            sales_expense = (territory_expenses / territory_samples * sample_count) if territory_samples > 0 else Decimal('0')
+            net_income = profit - sales_expense
+            
+            # Calculate NIPS (Net Income Per Sample)
+            nips = net_income / sample_count if sample_count > 0 else Decimal('0')
             
             # Accumulate totals
             total_revenue += revenue
             total_cogs += cogs_allocated
             total_profit += profit
+            total_sales_expense += sales_expense
+            total_net_income += net_income
             total_collector_cost += collector_cost
             total_samples += sample_count
-            if used_collection_pct_decimal > 0:
-                total_collection_weighted += revenue * used_collection_pct_decimal
-                total_collection_weight += placed_revenue
+            
+
             
             result.append({
                 'practice': practice_name,
                 'territory': territory,
+                'placed': round(float(placed_revenue), 2),
                 'revenue': round(float(revenue), 2),
                 'cogs': round(float(cogs_allocated), 2),
                 'profit': round(float(profit), 2),
+                'sales_expense': round(float(sales_expense), 2),
+                'net_income': round(float(net_income), 2),
                 'collection_pct': collection_pct_str,
-                'revenue_periods': periods_used,
+                'revenue_periods': revenue_periods,
                 'rps': round(float(rps), 2),
                 'bps': round(float(bps), 2),
-                'pps': round(float(pps), 2),
-                'cps': round(float(cps), 2),
-                'delta': round(float(delta), 2),
+                'gpps': round(float(gpps), 2),
+                'eps': round(float(eps), 2),
+                'nips': round(float(nips), 2),
                 'collector': collector,
                 'collector_cost': round(float(collector_cost), 2),
                 'sample_count': sample_count
             })
 
         # Calculate averages
-        avg_cogs = total_cogs / len(result) if result else Decimal('0')
+        # COGS should be a total, not an average
+        total_cogs_value = total_cogs
         avg_rps = total_revenue / total_samples if total_samples > 0 else Decimal('0')
-        avg_pps = total_profit / total_samples if total_samples > 0 else Decimal('0')
-        # Average CPS = total expenses / total samples
+        avg_gpps = total_profit / total_samples if total_samples > 0 else Decimal('0')
+        # Average EPS = (total expenses - total collector costs) / total samples
         total_expenses = sum(expenses_by_territory.values())
-        avg_cps = total_expenses / total_samples if total_samples > 0 else Decimal('0')
+        total_collector_costs = sum(collector_costs_by_territory.values())
+        avg_eps = (total_expenses - total_collector_costs) / total_samples if total_samples > 0 else Decimal('0')
         avg_collector_cost = total_collector_cost / len(result) if result else Decimal('0')
-        avg_delta = avg_pps - avg_cps
+        avg_nips = total_net_income / total_samples if total_samples > 0 else Decimal('0')
         # Calculate total BPS (total placed revenue / total samples)
         total_placed_revenue = sum(Decimal(str(row[2])) for row in rows)  # row[2] is placed_revenue
         avg_bps = total_placed_revenue / total_samples if total_samples > 0 else Decimal('0')
-        avg_collection_pct = (total_collection_weighted / total_collection_weight * 100) if total_collection_weight > 0 else 0
+        
+        # Calculate total collection % using same methodology as territory averages
+        total_actual_revenue = sum(territory_actual_revenue.values())
+        total_actual_placed = sum(territory_actual_placed.values())
+        avg_collection_pct = (total_actual_revenue / total_actual_placed * 100) if total_actual_placed > 0 else 0
+
         
         # Create totals row
         totals = {
             'practice': 'TOTAL',
             'territory': '',
+            'placed': round(float(total_placed_revenue), 2),
             'revenue': round(float(total_revenue), 2),
-            'cogs': round(float(total_cogs), 2),
+            'cogs': round(float(total_cogs_value), 2),
             'profit': round(float(total_profit), 2),
+            'sales_expense': round(float(total_sales_expense), 2),
+            'net_income': round(float(total_net_income), 2),
             'collection_pct': f"{round(avg_collection_pct, 1)}%",
-            'revenue_periods': 0,
             'rps': round(float(avg_rps), 2),
             'bps': round(float(avg_bps), 2),
-            'pps': round(float(avg_pps), 2),
-            'cps': round(float(avg_cps), 2),
-            'delta': round(float(avg_delta), 2),
+            'gpps': round(float(avg_gpps), 2),
+            'eps': round(float(avg_eps), 2),
+            'nips': round(float(avg_nips), 2),
             'collector': '',
             'collector_cost': round(float(avg_collector_cost), 2),
             'sample_count': total_samples
@@ -1116,6 +1208,8 @@ def get_account_table_live():
 
         cursor.close()
         conn.close()
+
+        print(f"[DEBUG] Number of result entries: {len(result)}")
 
         return jsonify({
             'accounts': result, 
@@ -1304,3 +1398,236 @@ def financial_class_breakdown():
     except Exception as e:
         print(f"[DEBUG] Exception: {e}")
         return jsonify({'error': str(e)}), 500 
+
+@dashboard_bp.route('/territory-sales-expense', methods=['GET'])
+def get_territory_sales_expense():
+    """Get sales expense breakdown by territory for a specific period."""
+    try:
+        period_type = request.args.get('period_type', 'june_2025')
+        
+        # Use the updated get_month_name_and_range function
+        month_name, start_date, end_date = get_month_name_and_range(period_type)
+        if not start_date or not end_date:
+            return jsonify({'error': 'Invalid period_type'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get month_year string for the period (e.g., 'June 2025')
+        month_year = start_date.strftime('%B %Y')
+        
+        # Get Expenses for each territory for the period
+        cursor.execute("""
+            SELECT territory, amount FROM cogs_expense
+            WHERE month_year = %s AND expense_type = 'Expense'
+        """, (month_year,))
+        expenses_by_territory = {row[0]: Decimal(str(row[1])) for row in cursor.fetchall()}
+        
+        # Get total samples per territory for the period
+        cursor.execute('''
+            SELECT ad.territory, COUNT(sb.client_account_number) as total_samples
+            FROM sample_billing sb
+            JOIN account_data ad ON sb.client_account_number = ad.account_number
+            WHERE DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
+            GROUP BY ad.territory
+        ''', (start_date, end_date))
+        samples_by_territory = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        # Get practice count per territory
+        cursor.execute('''
+            SELECT ad.territory, COUNT(DISTINCT ad.practice_name) as num_practices
+            FROM account_data ad
+            GROUP BY ad.territory
+        ''')
+        practices_by_territory = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        # Calculate CPS (Cost Per Sample) for each territory
+        territory_data = []
+        total_expenses = Decimal('0')
+        total_samples = 0
+        total_practices = 0
+        
+        for territory in expenses_by_territory:
+            expenses = expenses_by_territory[territory]
+            samples = samples_by_territory.get(territory, 0)
+            practices = practices_by_territory.get(territory, 0)
+            
+            cps = (expenses / samples) if samples > 0 else Decimal('0')
+            expense_per_practice = (expenses / practices) if practices > 0 else Decimal('0')
+            
+            territory_data.append({
+                'territory': territory,
+                'total_expenses': round(float(expenses), 2),
+                'total_samples': samples,
+                'num_practices': practices,
+                'cost_per_sample': round(float(cps), 2),
+                'expense_per_practice': round(float(expense_per_practice), 2)
+            })
+            
+            total_expenses += expenses
+            total_samples += samples
+            total_practices += practices
+        
+        # Calculate totals
+        total_cps = (total_expenses / total_samples) if total_samples > 0 else Decimal('0')
+        total_expense_per_practice = (total_expenses / total_practices) if total_practices > 0 else Decimal('0')
+        
+        totals = {
+            'territory': 'TOTAL',
+            'total_expenses': round(float(total_expenses), 2),
+            'total_samples': total_samples,
+            'num_practices': total_practices,
+            'cost_per_sample': round(float(total_cps), 2),
+            'expense_per_practice': round(float(total_expense_per_practice), 2)
+        }
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'territory_expenses': territory_data,
+            'totals': totals,
+            'period_type': period_type,
+            'month_year': month_year,
+            'count': len(territory_data)
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print('--- Exception in /territory-sales-expense ---')
+        traceback.print_exc()
+        print('--- End Exception ---')
+        return jsonify({'error': f'Failed to get territory sales expense data: {str(e)}'}), 500 
+
+@dashboard_bp.route('/account-metrics', methods=['GET'])
+def get_account_metrics():
+    """Get account metrics including new accounts and positive/negative net income counts."""
+    try:
+        period_type = request.args.get('period_type')
+        territory = request.args.get('territory', 'all')
+        if not period_type:
+            period_type = 'month'
+        
+        # Use the updated get_month_name_and_range function
+        month_name, start_date, end_date = get_month_name_and_range(period_type)
+        if not start_date or not end_date:
+            return jsonify({'error': 'Invalid period_type'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Count new accounts (practices using territory averages - yellow badges)
+        # Get all practices with their collection percentage calculations
+        if territory == 'all':
+            cursor.execute('''
+                SELECT ad.practice_name, ad.territory,
+                       COALESCE(SUM(sb.initial_balance),0) as placed_revenue,
+                       COUNT(DISTINCT sb.client_account_number) as sample_count
+                FROM sample_billing sb
+                JOIN account_data ad ON sb.client_account_number = ad.account_number
+                WHERE DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
+                GROUP BY ad.practice_name, ad.territory
+            ''', (start_date, end_date))
+        else:
+            cursor.execute('''
+                SELECT ad.practice_name, ad.territory,
+                       COALESCE(SUM(sb.initial_balance),0) as placed_revenue,
+                       COUNT(DISTINCT sb.client_account_number) as sample_count
+                FROM sample_billing sb
+                JOIN account_data ad ON sb.client_account_number = ad.account_number
+                WHERE DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
+                AND ad.territory = %s
+                GROUP BY ad.practice_name, ad.territory
+            ''', (start_date, end_date, territory))
+        practice_rows = cursor.fetchall()
+        
+        new_accounts = 0
+        for practice_row in practice_rows:
+            practice_name, territory, placed_revenue, sample_count = practice_row
+            avg_collection_pct, revenue_periods = calculate_average_collection_pct(cursor, practice_name, start_date)
+            
+            # Count as new account if using territory average (revenue_periods = 0)
+            if avg_collection_pct is None:
+                new_accounts += 1
+
+        # Get positive and negative net income accounts for the current period
+        # Use the same practice data we already fetched above
+        rows = practice_rows
+
+        # Calculate net income for each practice
+        positive_count = 0
+        negative_count = 0
+        
+        # Get expenses and COGS by territory for the period
+        month_year = start_date.strftime('%B %Y')
+        cursor.execute("""
+            SELECT territory, amount FROM cogs_expense
+            WHERE month_year = %s AND expense_type = 'Expense'
+        """, (month_year,))
+        expenses_by_territory = {row[0]: Decimal(str(row[1])) for row in cursor.fetchall()}
+        
+        cursor.execute("""
+            SELECT territory, amount FROM cogs_expense
+            WHERE month_year = %s AND expense_type = 'COGS'
+        """, (month_year,))
+        cogs_by_territory = {row[0]: Decimal(str(row[1])) for row in cursor.fetchall()}
+        
+        # Get total samples per territory for the period
+        cursor.execute('''
+            SELECT ad.territory, COUNT(sb.client_account_number) as total_samples
+            FROM sample_billing sb
+            JOIN account_data ad ON sb.client_account_number = ad.account_number
+            WHERE DATE(sb.placement_date) >= %s AND DATE(sb.placement_date) <= %s
+            GROUP BY ad.territory
+        ''', (start_date, end_date))
+        samples_by_territory = {row[0]: row[1] for row in cursor.fetchall()}
+
+        for row in rows:
+            practice_name, territory, placed_revenue, sample_count = row
+            avg_collection_pct, revenue_periods = calculate_average_collection_pct(cursor, practice_name, start_date)
+            
+            # Use territory average if no historical data
+            if avg_collection_pct is None:
+                # Calculate territory average (simplified version)
+                territory_avg = Decimal('0.6')  # Default fallback
+                used_collection_pct_decimal = territory_avg
+            else:
+                used_collection_pct_decimal = Decimal(str(avg_collection_pct))
+
+            placed_revenue = Decimal(str(placed_revenue))
+            revenue = placed_revenue * used_collection_pct_decimal
+            
+            # Calculate COGS allocation
+            territory_cogs = cogs_by_territory.get(territory, Decimal('0'))
+            territory_samples = samples_by_territory.get(territory, 0)
+            cogs_per_sample = (territory_cogs / territory_samples) if territory_samples > 0 else Decimal('0')
+            cogs_allocated = cogs_per_sample * sample_count
+            
+            # Calculate profit and sales expense
+            profit = revenue - cogs_allocated
+            territory_expenses = expenses_by_territory.get(territory, Decimal('0'))
+            sales_expense = (territory_expenses / territory_samples * sample_count) if territory_samples > 0 else Decimal('0')
+            net_income = profit - sales_expense
+            
+            # Count positive/negative
+            if net_income > 0:
+                positive_count += 1
+            else:
+                negative_count += 1
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            'new_accounts': new_accounts,
+            'positive_accounts': positive_count,
+            'negative_accounts': negative_count,
+            'period_type': period_type
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print('--- Exception in /account-metrics ---')
+        traceback.print_exc()
+        print('--- End Exception ---')
+        return jsonify({'error': f'Failed to get account metrics: {str(e)}'}), 500 

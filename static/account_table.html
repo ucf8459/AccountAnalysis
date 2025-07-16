@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Table</title>
+    <title>Account Analysis</title>
     <!-- Bootstrap CDN for quick styling -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -56,6 +57,19 @@
             color: #1565c0;
             text-decoration: underline;
         }
+        .badge-ta {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.85em;
+            font-weight: 700;
+            line-height: 1;
+            border-radius: 0.375rem;
+            vertical-align: baseline;
+            background-color: #ffc107;
+            border: 1.5px solid #222;
+            color: #222;
+            letter-spacing: 0.05em;
+        }
     </style>
 </head>
 <body>
@@ -84,7 +98,7 @@
     </div>
     <div class="table-container">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Account Table</h2>
+            <h2>Account Analysis</h2>
             <div class="d-flex gap-3">
                 <div class="period-selector">
                     <label for="periodSelector" class="form-label me-2">Time Period:</label>
@@ -92,18 +106,42 @@
                         <!-- Options will be populated by JavaScript -->
                     </select>
                 </div>
-                    <div class="territory-selector">
-                        <label for="territorySelector" class="form-label me-2">Territory:</label>
-                        <select id="territorySelector" class="form-select d-inline-block w-auto">
-                            <option value="all" selected>All Territories</option>
-                            <option value="Alpha">Alpha</option>
-                            <option value="Bravo">Bravo</option>
-                            <option value="Charlie">Charlie</option>
-                            <option value="Delta">Delta</option>
-                            <option value="Echo">Echo</option>
-                            <option value="Foxtrot">Foxtrot</option>
-                        </select>
+                <div class="territory-selector">
+                    <label for="territorySelector" class="form-label me-2">Territory:</label>
+                    <select id="territorySelector" class="form-select d-inline-block w-auto">
+                        <option value="all" selected>All Territories</option>
+                        <option value="Alpha">Alpha</option>
+                        <option value="Bravo">Bravo</option>
+                        <option value="Charlie">Charlie</option>
+                        <option value="Delta">Delta</option>
+                        <option value="Echo">Echo</option>
+                        <option value="Foxtrot">Foxtrot</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <!-- Filter Buttons and Metrics -->
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <div class="d-flex gap-2">
+                <button id="btn-hi-lo" type="button" class="btn btn-outline-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="Show top 5 and bottom 5 practices by Net Income for the selected period and territory.">Hi/Lo</button>
+                <button id="btn-payers-lt" type="button" class="btn btn-outline-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Show all practices where total Medicare/Medicaid (M/C) is less than 25%.">&lt; Payers</button>
+                <button id="btn-collectors" type="button" class="btn btn-outline-success" data-bs-toggle="tooltip" data-bs-placement="top" title="Show all accounts with a collector.">Collectors</button>
+                <button id="btn-reset" type="button" class="btn btn-outline-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Reset to the most recent month, all territories, and clear filters.">Reset</button>
+            </div>
+            <div class="d-flex gap-4 align-items-center">
+                <div class="text-center">
+                    <div class="fw-bold text-primary">New Accounts</div>
+                    <div id="new-accounts-count" class="fs-5 fw-bold">-</div>
+                    <div class="small text-muted">Using territory avg</div>
+                </div>
+                <div class="text-center">
+                    <div class="fw-bold">Net Income</div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="text-success fw-bold" id="positive-accounts">-</span>
+                        <span class="text-muted">/</span>
+                        <span class="text-danger fw-bold" id="negative-accounts">-</span>
                     </div>
+                    <div class="small text-muted">G / R</div>
                 </div>
             </div>
         </div>
@@ -119,16 +157,9 @@
                     <tr>
                     <th class="sortable" data-sort="practice">Practice</th>
                     <th class="sortable" data-sort="territory">Territory</th>
-                    <th class="sortable currency" data-sort="revenue">Revenue</th>
-                    <th class="sortable currency" data-sort="cogs">COGS</th>
-                    <th class="sortable currency" data-sort="profit">Profit</th>
+                    <th class="sortable currency" data-sort="revenue">Estimated Revenue</th>
+                    <th class="sortable currency" data-sort="net_income">Net Income</th>
                     <th class="sortable" data-sort="collection_pct">Collection %</th>
-                    <th class="sortable number" data-sort="rps">RPS</th>
-                    <th class="sortable number" data-sort="bps">BPS</th>
-                    <th class="sortable number" data-sort="pps">PPS</th>
-                    <th class="sortable number" data-sort="cps">CPS</th>
-                    <th class="sortable number" data-sort="delta">Delta</th>
-                    <th class="sortable currency" data-sort="collector_cost">Collector Cost</th>
                     <th class="sortable" data-sort="sample_count">Samples</th>
                     </tr>
                 </thead>
@@ -139,7 +170,7 @@
         
         <div id="error" class="alert alert-danger" style="display:none;"></div>
         <div class="mt-3 text-muted small">
-            <p><strong>*</strong> Collection % is weighted by revenue</p>
+            <p><strong>Badges:</strong> Blue badge = number of periods used in historical average (1–6). <span class="badge badge-ta">-</span> = territory average used due to lack of practice history.</p>
         </div>
     </div>
     
@@ -162,10 +193,56 @@
         </div>
     </div>
     
+    <div class="modal fade" id="practiceDetailsModal" tabindex="-1" aria-labelledby="practiceDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content position-relative">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="practiceDetailsModalLabel">Practice Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">Revenue Breakdown</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>Placed Revenue:</strong></td><td class="text-end" id="modal-placed">-</td></tr>
+                                <tr><td><strong>Estimated Revenue:</strong></td><td class="text-end" id="modal-revenue">-</td></tr>
+                                <tr><td><strong>COGS:</strong></td><td class="text-end" id="modal-cogs">-</td></tr>
+                                <tr><td><strong>Gross Profit:</strong></td><td class="text-end" id="modal-profit">-</td></tr>
+                                <tr><td><strong>Sales Expense:</strong></td><td class="text-end" id="modal-sales-expense">-</td></tr>
+                                <tr><td><strong>Net Income:</strong></td><td class="text-end" id="modal-net-income">-</td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary mb-3">Per-Sample Metrics</h6>
+                            <table class="table table-sm">
+                                <tr><td><strong>BPS:</strong></td><td class="text-end" id="modal-bps">-</td></tr>
+                                <tr><td><strong>RPS:</strong></td><td class="text-end" id="modal-rps">-</td></tr>
+                                <tr><td><strong>GPPS:</strong></td><td class="text-end" id="modal-gpps">-</td></tr>
+                                <tr><td><strong>EPS:</strong></td><td class="text-end" id="modal-eps">-</td></tr>
+                                <tr><td><strong>NIPS:</strong></td><td class="text-end" id="modal-nips">-</td></tr>
+                            </table>
+                            <div class="mt-3">
+                                <span id="modal-mc-label"><strong>M/C %:</strong></span>
+                                <span id="modal-mc" style="font-weight:bold; cursor:pointer;">-</span>
+                            </div>
+                            <div class="mt-2">
+                                <span id="modal-collector-indicator" class="badge"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Territory badge at bottom right -->
+                <span id="modal-territory-badge" class="badge position-absolute" style="bottom: 18px; right: 24px; font-size: 1.1em;"></span>
+            </div>
+        </div>
+    </div>
+    
     <script>
         let currentData = [];
         let currentTotals = null;
         let currentSort = { column: null, direction: 'asc' };
+        let currentFilter = null;
         
         // Sorting function
         function sortData(data, column, direction) {
@@ -174,7 +251,7 @@
                 let bVal = b[column];
                 
                 // Handle numeric values
-                if (["revenue", "profit", "rps", "pps", "cps", "delta"].includes(column)) {
+                if (["placed", "revenue", "profit", "rps", "gpps", "eps", "nips"].includes(column)) {
                     aVal = parseFloat(aVal);
                     bVal = parseFloat(bVal);
                 }
@@ -211,102 +288,144 @@
             
             let displayData = [...currentData];
             
+            // Apply territory filter if not all
+            const territorySelector = document.getElementById('territorySelector');
+            const selectedTerritory = territorySelector ? territorySelector.value : 'all';
+            if (selectedTerritory !== 'all') {
+                displayData = displayData.filter(account => account.territory === selectedTerritory);
+            }
+            
+            // Apply filter buttons
+            if (currentFilter === 'hi-lo') {
+                // Top 5 and bottom 5 by Net Income, no overlap, top sorted descending, bottom sorted ascending
+                const sortedDesc = [...displayData].sort((a, b) => (b.net_income || 0) - (a.net_income || 0));
+                const top5 = sortedDesc.slice(0, 5);
+                const sortedAsc = [...displayData].sort((a, b) => (a.net_income || 0) - (b.net_income || 0));
+                const bottom5 = sortedAsc.slice(0, 5);
+                // Remove overlap (if any practice is in both, only show in top)
+                const bottom5Filtered = bottom5.filter(row => !top5.some(top => top.practice === row.practice && top.territory === row.territory));
+                displayData = [...top5, ...bottom5Filtered];
+            } else if (currentFilter === 'collectors') {
+                // Accounts with a collector
+                displayData = displayData.filter(row => row.collector === 'Y');
+            }
+            
             // Apply sorting if column is selected
             if (currentSort.column) {
                 displayData = sortData(displayData, currentSort.column, currentSort.direction);
             }
             
-            // --- Calculate filtered totals ---
-            let totalRevenue = 0, totalCogs = 0, totalProfit = 0, totalCollectorCost = 0, totalSamples = 0;
-            let totalCollectionWeighted = 0, totalCollectionWeight = 0;
-            let sumRps = 0, sumBps = 0, sumPps = 0, sumCps = 0, sumDelta = 0, count = 0;
-            displayData.forEach(row => {
-                totalRevenue += row.revenue || 0;
-                totalCogs += row.cogs || 0;
-                totalProfit += row.profit || 0;
-                totalCollectorCost += row.collector_cost || 0;
-                totalSamples += row.sample_count || 0;
-                // Weighted collection %
-                let pct = 0;
-                if (typeof row.collection_pct === 'string' && row.collection_pct.endsWith('%')) {
-                    pct = parseFloat(row.collection_pct) / 100;
-                }
-                if (pct > 0) {
-                    totalCollectionWeighted += (row.revenue || 0) * pct;
-                    totalCollectionWeight += (row.revenue || 0);
-                }
-                sumRps += row.rps || 0;
-                sumBps += row.bps || 0;
-                sumPps += row.pps || 0;
-                sumCps += row.cps || 0;
-                sumDelta += row.delta || 0;
-                count++;
-            });
-            const avgCogs = count ? totalCogs / count : 0;
-            const avgRps = totalSamples ? totalRevenue / totalSamples : 0;
-            const avgBps = count ? sumBps / count : 0;
-            const avgPps = totalSamples ? totalProfit / totalSamples : 0;
-            const avgCps = totalSamples ? totalCogs / totalSamples : 0;
-            const avgCollectorCost = count ? totalCollectorCost / count : 0;
-            const avgDelta = avgRps - avgCps;
-            const avgCollectionPct = totalCollectionWeight > 0 ? (totalCollectionWeighted / totalCollectionWeight * 100) : 0;
-            const filteredTotals = {
-                practice: 'TOTAL',
-                territory: '',
-                revenue: totalRevenue,
-                cogs: avgCogs,
-                profit: totalProfit,
-                collection_pct: `${avgCollectionPct.toFixed(1)}%`,
-                revenue_periods: 0,
-                rps: avgRps,
-                bps: avgBps,
-                pps: avgPps,
-                cps: avgCps,
-                delta: avgDelta,
-                collector: '',
-                collector_cost: avgCollectorCost,
-                sample_count: totalSamples
-            };
-            // --- End filtered totals ---
+            // Determine if we are showing all territories
+            let totalsToShow;
+            if (displayData.length === 0) {
+                totalsToShow = null;
+            } else {
+                // Calculate totals for visible data (all or filtered)
+                let totalPlaced = 0, totalRevenue = 0, totalCogs = 0, totalProfit = 0, totalSalesExpense = 0, totalNetIncome = 0, totalCollectorCost = 0, totalSamples = 0;
+                let sumRps = 0, sumBps = 0, sumGpps = 0, sumEps = 0, sumNips = 0, count = 0;
+                displayData.forEach(row => {
+                    totalPlaced += row.placed || 0;
+                    totalRevenue += row.revenue || 0;
+                    totalCogs += row.cogs || 0;
+                    totalProfit += row.profit || 0;
+                    totalSalesExpense += row.sales_expense || 0;
+                    totalNetIncome += row.net_income || 0;
+                    totalCollectorCost += row.collector_cost || 0;
+                    totalSamples += row.sample_count || 0;
+                    sumRps += row.rps || 0;
+                    sumBps += row.bps || 0;
+                    sumGpps += row.gpps || 0;
+                    sumEps += row.eps || 0;
+                    sumNips += row.nips || 0;
+                    count++;
+                });
+                
+                const avgCogs = count ? totalCogs / count : 0;
+                const avgRps = totalSamples ? totalRevenue / totalSamples : 0;
+                const avgBps = count ? sumBps / count : 0;
+                const avgGpps = totalSamples ? totalProfit / totalSamples : 0;
+                const avgEps = totalSamples ? totalSalesExpense / totalSamples : 0;
+                const avgCollectorCost = count ? totalCollectorCost / count : 0;
+                const avgNips = totalSamples ? totalNetIncome / totalSamples : 0;
+                // Collection % as revenue / placed
+                const collectionPct = totalPlaced > 0 ? (totalRevenue / totalPlaced * 100) : 0;
+                // COGS should be a sum, not an average
+                const totalCogsValue = totalCogs;
+                totalsToShow = {
+                    practice: 'TOTAL',
+                    territory: '',
+                    placed: totalPlaced,
+                    revenue: totalRevenue,
+                    cogs: totalCogsValue,
+                    profit: totalProfit,
+                    sales_expense: totalSalesExpense,
+                    net_income: totalNetIncome,
+                    collection_pct: `${collectionPct.toFixed(1)}%`,
+                    revenue_periods: 0,
+                    rps: avgRps,
+                    bps: avgBps,
+                    gpps: avgGpps,
+                    eps: avgEps,
+                    nips: avgNips,
+                    collector: '',
+                    collector_cost: avgCollectorCost,
+                    sample_count: totalSamples
+                };
+            }
             
             // Render data rows
-            displayData.forEach(row => {
+            let rowCount = 0;
+            let hiLoSeparatorDrawn = false;
+            displayData.forEach((row, idx) => {
                 const tr = document.createElement('tr');
-                const deltaClass = row.delta >= 0 ? 'delta-positive' : 'delta-negative';
+                const deltaClass = row.nips >= 0 ? 'delta-positive' : 'delta-negative';
                 const collectorClass = row.collector === 'Y' ? 'collector-y' : 'collector-n';
-                
+                // Territory color mapping
+                const territoryColors = {
+                    'Alpha': '#0d6efd',
+                    'Bravo': '#6c757d',
+                    'Charlie': '#ffc107',
+                    'Delta': '#198754',
+                    'Echo': '#fd7e14',
+                    'Foxtrot': '#6610f2'
+                };
+                const territoryColor = territoryColors[row.territory] || '#adb5bd';
                 tr.innerHTML = `
-                    <td><a href="#" class="practice-link" data-practice="${encodeURIComponent(row.practice)}">${row.practice}</a></td>
-                    <td><span class="badge bg-secondary">${row.territory}</span></td>
+                    <td><a href="#" class="practice-link" data-practice="${encodeURIComponent(row.practice)}" data-row='${JSON.stringify(row)}'>${row.practice}</a></td>
+                    <td><span class="badge" style="background-color:${territoryColor};color:${['#ffc107','#fd7e14'].includes(territoryColor)?'black':'white'}">${row.territory}</span></td>
                     <td class="currency">${row.revenue !== undefined ? `$${Math.round(row.revenue).toLocaleString()}` : ''}</td>
-                    <td class="currency">${row.cogs !== undefined ? `$${Math.round(row.cogs).toLocaleString()}` : ''}</td>
-                    <td class="currency profit-cell">${row.profit !== undefined ? `$${Math.round(row.profit).toLocaleString()}` : ''}</td>
+                    <td class="currency">
+                        ${row.net_income !== undefined ? `$${Math.round(row.net_income).toLocaleString()}` : ''}
+                    </td>
                     <td class="collection-cell">
                         <span>${row.collection_pct}</span>&nbsp;&nbsp;&nbsp;
-                        ${row.collection_pct === '< 90' ? '<span class="badge bg-warning text-dark">0</span>' : (row.revenue_periods > 0 ? `<span class='badge period-badge-${Math.min(row.revenue_periods,6)}'>${row.revenue_periods}</span>` : '')}
-                    </td>
-                    <td class="number">${row.rps !== undefined ? `$${row.rps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : ''}</td>
-                    <td class="number">${row.bps !== undefined ? `$${row.bps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : ''}</td>
-                    <td class="number">${row.pps !== undefined ? `$${row.pps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : ''}</td>
-                    <td class="number">${row.cps !== undefined ? `$${row.cps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : ''}</td>
-                    <td class="number ${deltaClass}">${row.delta !== undefined ? `$${row.delta.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : ''}</td>
-                    <td class="currency">
-                        <input type="number" class="form-control form-control-sm collector-cost-input" 
-                               data-practice="${encodeURIComponent(row.practice)}" 
-                               value="${row.collector_cost || 0}" 
-                               step="0.01" 
-                               min="0" 
-                               style="width: 80px; text-align: right;"
-                               placeholder="0.00" />
-                        <span class="collector-spinner" style="display:none;"><span class="spinner-border spinner-border-sm text-primary"></span></span>
+                        ${row.revenue_periods > 0
+                            ? `<span class='badge period-badge-${Math.min(row.revenue_periods,6)}'>${row.revenue_periods}</span>`
+                            : `<span class='badge badge-ta ms-1'>-</span>`}
                     </td>
                     <td>${row.sample_count}</td>
                 `;
                 tbody.appendChild(tr);
+                rowCount++;
+                // Draw separator after top5 for Hi/Lo
+                if (currentFilter === 'hi-lo' && !hiLoSeparatorDrawn && rowCount === 5) {
+                    const separatorRow = document.createElement('tr');
+                    separatorRow.className = 'separator-row';
+                    separatorRow.style.backgroundColor = '#f8f9fa';
+                    separatorRow.style.borderTop = '2px solid #dee2e6';
+                    separatorRow.style.borderBottom = '2px solid #dee2e6';
+                    separatorRow.innerHTML = `
+                        <td colspan="6" style="text-align: center; padding: 8px; font-weight: bold; color: #6c757d; font-size: 0.9em;">
+                            ─── Bottom 5 Practices ───
+                        </td>
+                    `;
+                    tbody.appendChild(separatorRow);
+                    hiLoSeparatorDrawn = true;
+                }
             });
             
-            // Render totals row for filtered data
-            if (displayData.length > 0) {
+            // Render totals row
+            if (displayData.length > 0 && totalsToShow) {
                 const totalsRow = document.createElement('tr');
                 totalsRow.className = 'totals-row fw-bold';
                 totalsRow.style.backgroundColor = '#0d6efd';
@@ -315,19 +434,12 @@
                 totalsRow.style.bottom = '0';
                 totalsRow.style.zIndex = '10';
                 totalsRow.innerHTML = `
-                    <td style="border-color: #0b5ed7;"><strong>${filteredTotals.practice}</strong></td>
+                    <td style="border-color: #0b5ed7;"><strong>${totalsToShow.practice}</strong></td>
                     <td style="border-color: #0b5ed7;"></td>
-                    <td class="currency" style="border-color: #0b5ed7;"><strong>$${Math.round(filteredTotals.revenue).toLocaleString()}</strong></td>
-                    <td class="currency" style="border-color: #0b5ed7;"><strong>$${Math.round(currentTotals.cogs).toLocaleString()}</strong></td>
-                    <td class="currency" style="border-color: #0b5ed7;"><strong>$${Math.round(filteredTotals.profit).toLocaleString()}</strong></td>
-                    <td class="collection-cell" style="border-color: #0b5ed7;"><strong>${filteredTotals.collection_pct}*</strong></td>
-                    <td class="number" style="border-color: #0b5ed7;"><strong>$${filteredTotals.rps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                    <td class="number" style="border-color: #0b5ed7;"><strong>$${filteredTotals.bps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                    <td class="number" style="border-color: #0b5ed7;"><strong>$${filteredTotals.pps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                    <td class="number" style="border-color: #0b5ed7;"><strong>$${filteredTotals.cps.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                    <td class="number" style="border-color: #0b5ed7;"><strong>$${filteredTotals.delta.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                    <td class="currency" style="border-color: #0b5ed7;"><strong>$${filteredTotals.collector_cost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
-                    <td style="border-color: #0b5ed7;"><strong>${filteredTotals.sample_count.toLocaleString()}</strong></td>
+                    <td class="currency" style="border-color: #0b5ed7;"><strong>$${Math.round(totalsToShow.revenue).toLocaleString()}</strong></td>
+                    <td class="currency" style="border-color: #0b5ed7;"><strong>$${Math.round(totalsToShow.net_income).toLocaleString()}</strong></td>
+                    <td class="collection-cell" style="border-color: #0b5ed7;"><strong>${totalsToShow.collection_pct}</strong></td>
+                    <td style="border-color: #0b5ed7;"><strong>${totalsToShow.sample_count.toLocaleString()}</strong></td>
                 `;
                 tbody.appendChild(totalsRow);
             }
@@ -359,12 +471,35 @@
                 currentTotals = data.totals;
                 renderTable();
                 
+                // Load account metrics
+                await loadAccountMetrics(periodType, territory);
+                
                 loading.style.display = 'none';
                 table.style.display = '';
             } catch (err) {
                 loading.style.display = 'none';
                 errorDiv.textContent = err.message;
                 errorDiv.style.display = '';
+            }
+        }
+        
+        async function loadAccountMetrics(periodType, territory = 'all') {
+            try {
+                const response = await fetch(`/api/dashboard/account-metrics?period_type=${periodType}&territory=${territory}`);
+                if (!response.ok) throw new Error('Failed to fetch metrics');
+                
+                const data = await response.json();
+                
+                // Update the metrics display
+                document.getElementById('new-accounts-count').textContent = data.new_accounts || 0;
+                document.getElementById('positive-accounts').textContent = data.positive_accounts || 0;
+                document.getElementById('negative-accounts').textContent = data.negative_accounts || 0;
+            } catch (err) {
+                console.error('Failed to load account metrics:', err);
+                // Set default values on error
+                document.getElementById('new-accounts-count').textContent = '-';
+                document.getElementById('positive-accounts').textContent = '-';
+                document.getElementById('negative-accounts').textContent = '-';
             }
         }
         
@@ -404,84 +539,130 @@
             }
         });
         
-                    // Add click handlers for sorting
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log('DOM Content Loaded');
-                
-                // Populate period selector
-                populatePeriodSelector();
-                
-                // Load initial data with the most recent month
-                const periodSelector = document.getElementById('periodSelector');
-                const initialPeriod = periodSelector.value;
-                loadAccountTable(initialPeriod, 'all');
+        // Add event listeners for filter buttons
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM Content Loaded');
+            
+            // Populate period selector
+            populatePeriodSelector();
+            
+            // Load initial data with the most recent month
+            const periodSelector = document.getElementById('periodSelector');
+            const initialPeriod = periodSelector.value;
+            loadAccountTable(initialPeriod, 'all');
 
-                // Add event listeners for collector cost inputs
-                document.addEventListener('change', function(e) {
-                    if (e.target.classList.contains('collector-cost-input')) {
-                        const practice = decodeURIComponent(e.target.getAttribute('data-practice'));
-                        const collectorCost = parseFloat(e.target.value) || 0;
-                        updateCollectorCost(practice, collectorCost);
-                    }
-                });
+            // Add event listeners for collector cost inputs
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('collector-cost-input')) {
+                    const practice = decodeURIComponent(e.target.getAttribute('data-practice'));
+                    const collectorCost = parseFloat(e.target.value) || 0;
+                    updateCollectorCost(practice, collectorCost);
+                }
+            });
+
+            // Filter button event listeners
+            document.getElementById('btn-hi-lo').addEventListener('click', function() { 
+                applyFilter('hi-lo'); 
+            });
+            document.getElementById('btn-payers-lt').addEventListener('click', function() { 
+                currentFilter = 'payers-lt';
+                filterByPayers(); 
+            });
+            document.getElementById('btn-collectors').addEventListener('click', function() {
+                applyFilter('collectors');
+            });
+            document.getElementById('btn-reset').addEventListener('click', function() {
+                // Reset period to most recent
+                const periodSelector = document.getElementById('periodSelector');
+                if (periodSelector.options.length > 0) {
+                    periodSelector.selectedIndex = 0;
+                }
+                // Reset territory to all
+                const territorySelector = document.getElementById('territorySelector');
+                if (territorySelector) {
+                    territorySelector.value = 'all';
+                }
+                // Clear filter
+                currentFilter = null;
+                reloadData();
+            });
 
             // Practice name click handler for modal
             document.getElementById('accountTable').addEventListener('click', async function(e) {
-                console.log('Click detected on:', e.target);
-                console.log('Target classList:', e.target.classList);
-                console.log('Target tagName:', e.target.tagName);
-                
                 if (e.target && e.target.classList.contains('practice-link')) {
-                    console.log('Practice link clicked!');
                     e.preventDefault();
                     const practice = decodeURIComponent(e.target.getAttribute('data-practice'));
-                    console.log('Practice:', practice);
-                    const periodType = document.getElementById('periodSelector').value;
-                    console.log('Period type:', periodType);
-                    
-                    // Show loading in modal
-                    document.getElementById('finClassModalLabel').textContent = 'Loading...';
-                    document.getElementById('finClassPeriod').textContent = '';
-                    document.getElementById('finClassPayerMix').innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div></div>';
-                    const modal = new bootstrap.Modal(document.getElementById('finClassModal'));
-                    modal.show();
-                    
-                    try {
-                        // Fetch breakdown
-                        const res = await fetch(`/api/dashboard/financial-class-breakdown?practice=${encodeURIComponent(practice)}&period_type=${periodType}`);
-                        console.log('Response status:', res.status);
-                        if (!res.ok) {
-                            throw new Error('Failed to load financial class breakdown');
-                        }
-                        const data = await res.json();
-                        console.log('Data received:', data);
-                        
-                        // Set modal title to practice name
-                        document.getElementById('finClassModalLabel').textContent = practice;
-                        
-                        if (data.breakdown && data.breakdown.length > 0) {
-                            const highlightClasses = ['HCARE', 'CARE', 'HUM', 'UHC', 'AETNA'];
-                            const rows = data.breakdown.map((item, i) => {
-                                const highlight = highlightClasses.includes(item.class) ? " style='background:#ffeeba;font-weight:bold;'" : '';
-                                return `<tr${highlight}><td>${item.class}</td><td>${item.percent}%</td></tr>`;
-                            }).join('');
-                            document.getElementById('finClassPayerMix').innerHTML =
-                                `<table class='table table-sm table-bordered'><thead><tr><th>Financial Class</th><th>% of Total</th></tr></thead><tbody>${rows}</tbody></table>`;
-
-                            // Calculate Total M/C (CARE + HCARE)
-                            let totalMC = 0;
-                            data.breakdown.forEach(item => {
-                                if (item.class === 'CARE' || item.class === 'HCARE') {
-                                    totalMC += parseFloat(item.percent);
-                                }
-                            });
-                            const mcColor = totalMC >= 30 ? 'green' : 'red';
-                            document.getElementById('finClassTotalMC').innerHTML = `Total M/C: <span style='color:${mcColor}'>${totalMC.toFixed(1)}%</span>`;
-                        }
-                    } catch (err) {
-                        console.error('Error loading financial class breakdown:', err);
-                        document.getElementById('finClassPayerMix').innerHTML = '<p>Error loading financial class breakdown.</p>';
+                    const rowData = JSON.parse(e.target.getAttribute('data-row'));
+                    // Populate modal with data (reuse details modal logic)
+                    document.getElementById('practiceDetailsModalLabel').textContent = practice;
+                    document.getElementById('modal-placed').textContent = `$${Math.round(rowData.placed || 0).toLocaleString()}`;
+                    document.getElementById('modal-revenue').textContent = `$${Math.round(rowData.revenue || 0).toLocaleString()}`;
+                    document.getElementById('modal-cogs').textContent = `$${Math.round(rowData.cogs || 0).toLocaleString()}`;
+                    document.getElementById('modal-profit').textContent = `$${Math.round(rowData.profit || 0).toLocaleString()}`;
+                    document.getElementById('modal-sales-expense').textContent = `$${Math.round(rowData.sales_expense || 0).toLocaleString()}`;
+                    document.getElementById('modal-net-income').textContent = `$${Math.round(rowData.net_income || 0).toLocaleString()}`;
+                    document.getElementById('modal-bps').textContent = `$${(rowData.bps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    document.getElementById('modal-rps').textContent = `$${(rowData.rps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    document.getElementById('modal-gpps').textContent = `$${(rowData.gpps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    document.getElementById('modal-eps').textContent = `$${(rowData.eps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    document.getElementById('modal-nips').textContent = `$${(rowData.nips || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    // Collector indicator
+                    const collectorIndicator = document.getElementById('modal-collector-indicator');
+                    if (rowData.collector === 'Y') {
+                        collectorIndicator.textContent = 'Collector: Y';
+                        collectorIndicator.className = 'badge bg-success';
+                    } else {
+                        collectorIndicator.textContent = 'Collector: N';
+                        collectorIndicator.className = 'badge bg-secondary';
                     }
+                    // Territory badge (bottom right)
+                    const territoryColors = {
+                        'Alpha': '#0d6efd',
+                        'Bravo': '#6c757d',
+                        'Charlie': '#ffc107',
+                        'Delta': '#198754',
+                        'Echo': '#fd7e14',
+                        'Foxtrot': '#6610f2'
+                    };
+                    const territoryBadge = document.getElementById('modal-territory-badge');
+                    const territoryColor = territoryColors[rowData.territory] || '#adb5bd';
+                    territoryBadge.textContent = rowData.territory || '';
+                    territoryBadge.style.backgroundColor = territoryColor;
+                    territoryBadge.style.color = ['#ffc107','#fd7e14'].includes(territoryColor)?'black':'white';
+                    // M/C %
+                    fetch(`/api/dashboard/financial-class-breakdown?practice=${encodeURIComponent(practice)}&period_type=${document.getElementById('periodSelector').value}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            let totalMC = 0;
+                            if (data.breakdown) {
+                                data.breakdown.forEach(item => {
+                                    if (item.class === 'CARE' || item.class === 'HCARE') {
+                                        totalMC += parseFloat(item.percent);
+                                    }
+                                });
+                            }
+                            const mcSpan = document.getElementById('modal-mc');
+                            mcSpan.textContent = `${totalMC.toFixed(1)}%`;
+                            mcSpan.style.color = totalMC >= 30 ? 'green' : 'red';
+                            mcSpan.onclick = function() {
+                                // Show payer mix modal
+                                let rows = '';
+                                if (data.breakdown) {
+                                    rows = data.breakdown.map(item => {
+                                        const highlight = ['HCARE', 'CARE', 'HUM', 'UHC', 'AETNA'].includes(item.class) ? " style='background:#ffeeba;font-weight:bold;'" : '';
+                                        return `<tr${highlight}><td>${item.class}</td><td>${item.percent}%</td></tr>`;
+                                    }).join('');
+                                }
+                                const payerMixHtml = `<table class='table table-sm table-bordered'><thead><tr><th>Financial Class</th><th>% of Total</th></tr></thead><tbody>${rows}</tbody></table>`;
+                                const payerMixModal = new bootstrap.Modal(document.getElementById('payerMixModal'));
+                                document.getElementById('payerMixModalLabel').textContent = practice + ' - Payer Mix';
+                                document.getElementById('payerMixModalBody').innerHTML = payerMixHtml;
+                                payerMixModal.show();
+                            };
+                        });
+                    // Show modal
+                    const modal = new bootstrap.Modal(document.getElementById('practiceDetailsModal'));
+                    modal.show();
                 }
             });
 
@@ -621,6 +802,93 @@
                 input.disabled = false;
             }
         }
+
+        // Enable Bootstrap tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Filter button handlers
+        function applyFilter(filterType) {
+            currentFilter = filterType;
+            renderTable();
+        }
+
+        // For < Payers filter, need to fetch M/C for all practices and filter
+        async function filterByPayers() {
+            const periodType = document.getElementById('periodSelector').value;
+            const territorySelector = document.getElementById('territorySelector');
+            const selectedTerritory = territorySelector ? territorySelector.value : 'all';
+            
+            let filtered = [];
+            for (const row of currentData) {
+                if (selectedTerritory !== 'all' && row.territory !== selectedTerritory) continue;
+                try {
+                    const res = await fetch(`/api/dashboard/financial-class-breakdown?practice=${encodeURIComponent(row.practice)}&period_type=${periodType}`);
+                    const data = await res.json();
+                    let totalMC = 0;
+                    if (data.breakdown) {
+                        data.breakdown.forEach(item => {
+                            if (item.class === 'CARE' || item.class === 'HCARE') {
+                                totalMC += parseFloat(item.percent);
+                            }
+                        });
+                    }
+                    if (totalMC < 25) filtered.push(row);
+                } catch (error) {
+                    console.error('Error fetching M/C data for', row.practice, error);
+                }
+            }
+            // Sort by practice name
+            filtered.sort((a, b) => a.practice.localeCompare(b.practice));
+            
+            // Render filtered table
+            const tbody = document.querySelector('#accountTable tbody');
+            tbody.innerHTML = '';
+            filtered.forEach(row => {
+                const tr = document.createElement('tr');
+                const territoryColors = {
+                    'Alpha': '#0d6efd',
+                    'Bravo': '#6c757d',
+                    'Charlie': '#ffc107',
+                    'Delta': '#198754',
+                    'Echo': '#fd7e14',
+                    'Foxtrot': '#6610f2'
+                };
+                const territoryColor = territoryColors[row.territory] || '#adb5bd';
+                tr.innerHTML = `
+                    <td><a href="#" class="practice-link" data-practice="${encodeURIComponent(row.practice)}" data-row='${JSON.stringify(row)}'>${row.practice}</a></td>
+                    <td><span class="badge" style="background-color:${territoryColor};color:${['#ffc107','#fd7e14'].includes(territoryColor)?'black':'white'}">${row.territory}</span></td>
+                    <td class="currency">${row.revenue !== undefined ? `$${Math.round(row.revenue).toLocaleString()}` : ''}</td>
+                    <td class="currency">
+                        ${row.net_income !== undefined ? `$${Math.round(row.net_income).toLocaleString()}` : ''}
+                    </td>
+                    <td class="collection-cell">
+                        <span>${row.collection_pct}</span>&nbsp;&nbsp;&nbsp;
+                        ${row.revenue_periods > 0
+                            ? `<span class='badge period-badge-${Math.min(row.revenue_periods,6)}'>${row.revenue_periods}</span>`
+                            : `<span class='badge badge-ta ms-1'>-</span>`}
+                    </td>
+                    <td>${row.sample_count}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
     </script>
+
+    <!-- Payer Mix Modal -->
+    <div class="modal fade" id="payerMixModal" tabindex="-1" aria-labelledby="payerMixModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="payerMixModalLabel">Payer Mix</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="payerMixModalBody">
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
