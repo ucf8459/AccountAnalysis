@@ -123,16 +123,22 @@
         <!-- Filter Buttons and Metrics -->
         <div class="mb-3 d-flex justify-content-between align-items-center">
             <div class="d-flex gap-2">
-                <button id="btn-hi-lo" type="button" class="btn btn-outline-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="Show top 5 and bottom 5 practices by Net Income for the selected period and territory.">Hi/Lo</button>
-                <button id="btn-payers-lt" type="button" class="btn btn-outline-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="Show all practices where total Medicare/Medicaid (M/C) is less than 25%.">&lt; Payers</button>
-                <button id="btn-collectors" type="button" class="btn btn-outline-success" data-bs-toggle="tooltip" data-bs-placement="top" title="Show all accounts with a collector.">Collectors</button>
+                            <button id="btn-hi-lo" type="button" class="btn btn-outline-primary" data-bs-toggle="tooltip" data-bs-placement="top" title="Show top 5 and bottom 5 practices by Net Income for the selected period and territory.">Hi/Lo</button>
+            <button id="btn-collectors" type="button" class="btn btn-outline-success" data-bs-toggle="tooltip" data-bs-placement="top" title="Show all accounts with a collector.">Collectors</button>
                 <button id="btn-reset" type="button" class="btn btn-outline-secondary" data-bs-toggle="tooltip" data-bs-placement="top" title="Reset to the most recent month, all territories, and clear filters.">Reset</button>
             </div>
             <div class="d-flex gap-4 align-items-center">
                 <div class="text-center">
+                    <div class="fw-bold text-info">ROS</div>
+                    <div id="ros-metric" class="fs-5 fw-bold">-</div>
+                </div>
+                <div class="text-center">
                     <div class="fw-bold text-primary">New Accounts</div>
                     <div id="new-accounts-count" class="fs-5 fw-bold">-</div>
-                    <div class="small text-muted">Using territory avg</div>
+                </div>
+                <div class="text-center">
+                    <div class="fw-bold text-secondary">Total Accounts</div>
+                    <div id="total-accounts-count" class="fs-5 fw-bold">-</div>
                 </div>
                 <div class="text-center">
                     <div class="fw-bold">Net Income</div>
@@ -141,7 +147,6 @@
                         <span class="text-muted">/</span>
                         <span class="text-danger fw-bold" id="negative-accounts">-</span>
                     </div>
-                    <div class="small text-muted">G / R</div>
                 </div>
             </div>
         </div>
@@ -157,7 +162,7 @@
                     <tr>
                     <th class="sortable" data-sort="practice">Practice</th>
                     <th class="sortable" data-sort="territory">Territory</th>
-                    <th class="sortable currency" data-sort="revenue">Estimated Revenue</th>
+                    <th class="sortable currency" data-sort="revenue">Revenue</th>
                     <th class="sortable currency" data-sort="net_income">Net Income</th>
                     <th class="sortable" data-sort="collection_pct">Collection %</th>
                     <th class="sortable" data-sort="sample_count">Samples</th>
@@ -205,12 +210,13 @@
                         <div class="col-md-6">
                             <h6 class="text-primary mb-3">Revenue Breakdown</h6>
                             <table class="table table-sm">
-                                <tr><td><strong>Placed Revenue:</strong></td><td class="text-end" id="modal-placed">-</td></tr>
-                                <tr><td><strong>Estimated Revenue:</strong></td><td class="text-end" id="modal-revenue">-</td></tr>
+                                <tr><td><strong>Placed:</strong></td><td class="text-end" id="modal-placed">-</td></tr>
+                                <tr><td><strong>Revenue:</strong></td><td class="text-end" id="modal-revenue">-</td></tr>
                                 <tr><td><strong>COGS:</strong></td><td class="text-end" id="modal-cogs">-</td></tr>
                                 <tr><td><strong>Gross Profit:</strong></td><td class="text-end" id="modal-profit">-</td></tr>
                                 <tr><td><strong>Sales Expense:</strong></td><td class="text-end" id="modal-sales-expense">-</td></tr>
                                 <tr><td><strong>Net Income:</strong></td><td class="text-end" id="modal-net-income">-</td></tr>
+                                <tr><td><strong>ROS:</strong></td><td class="text-end" id="modal-ros">-</td></tr>
                             </table>
                         </div>
                         <div class="col-md-6">
@@ -219,7 +225,7 @@
                                 <tr><td><strong>BPS:</strong></td><td class="text-end" id="modal-bps">-</td></tr>
                                 <tr><td><strong>RPS:</strong></td><td class="text-end" id="modal-rps">-</td></tr>
                                 <tr><td><strong>GPPS:</strong></td><td class="text-end" id="modal-gpps">-</td></tr>
-                                <tr><td><strong>EPS:</strong></td><td class="text-end" id="modal-eps">-</td></tr>
+                                <tr><td><strong>SEPS:</strong></td><td class="text-end" id="modal-eps">-</td></tr>
                                 <tr><td><strong>NIPS:</strong></td><td class="text-end" id="modal-nips">-</td></tr>
                             </table>
                             <div class="mt-3">
@@ -492,14 +498,27 @@
                 
                 // Update the metrics display
                 document.getElementById('new-accounts-count').textContent = data.new_accounts || 0;
+                document.getElementById('total-accounts-count').textContent = data.total_accounts || 0;
                 document.getElementById('positive-accounts').textContent = data.positive_accounts || 0;
                 document.getElementById('negative-accounts').textContent = data.negative_accounts || 0;
+                
+                // Calculate and display ROS metric
+                const rosMetric = document.getElementById('ros-metric');
+                if (data.total_net_income !== undefined && data.total_sales_expense !== undefined) {
+                    const ros = data.total_sales_expense > 0 ? (data.total_net_income / data.total_sales_expense * 100) : 0;
+                    rosMetric.textContent = `${Math.round(ros)}%`;
+                    rosMetric.style.color = ros < 0 ? 'red' : '';
+                } else {
+                    rosMetric.textContent = '-';
+                }
             } catch (err) {
                 console.error('Failed to load account metrics:', err);
                 // Set default values on error
                 document.getElementById('new-accounts-count').textContent = '-';
+                document.getElementById('total-accounts-count').textContent = '-';
                 document.getElementById('positive-accounts').textContent = '-';
                 document.getElementById('negative-accounts').textContent = '-';
+                document.getElementById('ros-metric').textContent = '-';
             }
         }
         
@@ -563,13 +582,11 @@
             // Filter button event listeners
             document.getElementById('btn-hi-lo').addEventListener('click', function() { 
                 applyFilter('hi-lo'); 
-            });
-            document.getElementById('btn-payers-lt').addEventListener('click', function() { 
-                currentFilter = 'payers-lt';
-                filterByPayers(); 
+                updateFilterButtonStates();
             });
             document.getElementById('btn-collectors').addEventListener('click', function() {
                 applyFilter('collectors');
+                updateFilterButtonStates();
             });
             document.getElementById('btn-reset').addEventListener('click', function() {
                 // Reset period to most recent
@@ -585,6 +602,7 @@
                 // Clear filter
                 currentFilter = null;
                 reloadData();
+                updateFilterButtonStates();
             });
 
             // Practice name click handler for modal
@@ -595,17 +613,75 @@
                     const rowData = JSON.parse(e.target.getAttribute('data-row'));
                     // Populate modal with data (reuse details modal logic)
                     document.getElementById('practiceDetailsModalLabel').textContent = practice;
-                    document.getElementById('modal-placed').textContent = `$${Math.round(rowData.placed || 0).toLocaleString()}`;
-                    document.getElementById('modal-revenue').textContent = `$${Math.round(rowData.revenue || 0).toLocaleString()}`;
-                    document.getElementById('modal-cogs').textContent = `$${Math.round(rowData.cogs || 0).toLocaleString()}`;
-                    document.getElementById('modal-profit').textContent = `$${Math.round(rowData.profit || 0).toLocaleString()}`;
-                    document.getElementById('modal-sales-expense').textContent = `$${Math.round(rowData.sales_expense || 0).toLocaleString()}`;
-                    document.getElementById('modal-net-income').textContent = `$${Math.round(rowData.net_income || 0).toLocaleString()}`;
-                    document.getElementById('modal-bps').textContent = `$${(rowData.bps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                    document.getElementById('modal-rps').textContent = `$${(rowData.rps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                    document.getElementById('modal-gpps').textContent = `$${(rowData.gpps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                    document.getElementById('modal-eps').textContent = `$${(rowData.eps || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                    document.getElementById('modal-nips').textContent = `$${(rowData.nips || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    // Helper function to format currency with red color for negative values
+                    function formatCurrency(value, decimals = 0) {
+                        const numValue = parseFloat(value || 0);
+                        const formatted = decimals === 0 ? 
+                            `$${Math.round(numValue).toLocaleString()}` : 
+                            `$${numValue.toLocaleString(undefined, {minimumFractionDigits: decimals, maximumFractionDigits: decimals})}`;
+                        return { text: formatted, isNegative: numValue < 0 };
+                    }
+
+                    // Update modal fields with conditional red coloring
+                    const placedEl = document.getElementById('modal-placed');
+                    const placedData = formatCurrency(rowData.placed);
+                    placedEl.textContent = placedData.text;
+                    placedEl.style.color = placedData.isNegative ? 'red' : '';
+
+                    const revenueEl = document.getElementById('modal-revenue');
+                    const revenueData = formatCurrency(rowData.revenue);
+                    revenueEl.textContent = revenueData.text;
+                    revenueEl.style.color = revenueData.isNegative ? 'red' : '';
+
+                    const cogsEl = document.getElementById('modal-cogs');
+                    const cogsData = formatCurrency(rowData.cogs);
+                    cogsEl.textContent = cogsData.text;
+                    cogsEl.style.color = cogsData.isNegative ? 'red' : '';
+
+                    const profitEl = document.getElementById('modal-profit');
+                    const profitData = formatCurrency(rowData.profit);
+                    profitEl.textContent = profitData.text;
+                    profitEl.style.color = profitData.isNegative ? 'red' : '';
+
+                    const salesExpenseEl = document.getElementById('modal-sales-expense');
+                    const salesExpenseData = formatCurrency(rowData.sales_expense);
+                    salesExpenseEl.textContent = salesExpenseData.text;
+                    salesExpenseEl.style.color = salesExpenseData.isNegative ? 'red' : '';
+
+                    const netIncomeEl = document.getElementById('modal-net-income');
+                    const netIncomeData = formatCurrency(rowData.net_income);
+                    netIncomeEl.textContent = netIncomeData.text;
+                    netIncomeEl.style.color = netIncomeData.isNegative ? 'red' : '';
+
+                    const bpsEl = document.getElementById('modal-bps');
+                    const bpsData = formatCurrency(rowData.bps, 2);
+                    bpsEl.textContent = bpsData.text;
+                    bpsEl.style.color = bpsData.isNegative ? 'red' : '';
+
+                    const rpsEl = document.getElementById('modal-rps');
+                    const rpsData = formatCurrency(rowData.rps, 2);
+                    rpsEl.textContent = rpsData.text;
+                    rpsEl.style.color = rpsData.isNegative ? 'red' : '';
+
+                    const gppsEl = document.getElementById('modal-gpps');
+                    const gppsData = formatCurrency(rowData.gpps, 2);
+                    gppsEl.textContent = gppsData.text;
+                    gppsEl.style.color = gppsData.isNegative ? 'red' : '';
+
+                    const epsEl = document.getElementById('modal-eps');
+                    const epsData = formatCurrency(rowData.eps, 2);
+                    epsEl.textContent = epsData.text;
+                    epsEl.style.color = epsData.isNegative ? 'red' : '';
+
+                    const nipsEl = document.getElementById('modal-nips');
+                    const nipsData = formatCurrency(rowData.nips, 2);
+                    nipsEl.textContent = nipsData.text;
+                    nipsEl.style.color = nipsData.isNegative ? 'red' : '';
+
+                    const rosEl = document.getElementById('modal-ros');
+                    const rosValue = rowData.ros || 0;
+                    rosEl.textContent = `${rosValue}%`;
+                    rosEl.style.color = rosValue < 0 ? 'red' : '';
                     // Collector indicator
                     const collectorIndicator = document.getElementById('modal-collector-indicator');
                     if (rowData.collector === 'Y') {
@@ -700,6 +776,9 @@
                 }
               });
             }
+
+            // On page load, ensure filter button states are correct
+            updateFilterButtonStates();
         });
 
         function showLoginModal() {
@@ -815,65 +894,18 @@
             renderTable();
         }
 
-        // For < Payers filter, need to fetch M/C for all practices and filter
-        async function filterByPayers() {
-            const periodType = document.getElementById('periodSelector').value;
-            const territorySelector = document.getElementById('territorySelector');
-            const selectedTerritory = territorySelector ? territorySelector.value : 'all';
-            
-            let filtered = [];
-            for (const row of currentData) {
-                if (selectedTerritory !== 'all' && row.territory !== selectedTerritory) continue;
-                try {
-                    const res = await fetch(`/api/dashboard/financial-class-breakdown?practice=${encodeURIComponent(row.practice)}&period_type=${periodType}`);
-                    const data = await res.json();
-                    let totalMC = 0;
-                    if (data.breakdown) {
-                        data.breakdown.forEach(item => {
-                            if (item.class === 'CARE' || item.class === 'HCARE') {
-                                totalMC += parseFloat(item.percent);
-                            }
-                        });
-                    }
-                    if (totalMC < 25) filtered.push(row);
-                } catch (error) {
-                    console.error('Error fetching M/C data for', row.practice, error);
-                }
+
+
+        // Add this function to update filter button states
+        function updateFilterButtonStates() {
+            document.getElementById('btn-hi-lo').classList.remove('active');
+            document.getElementById('btn-collectors').classList.remove('active');
+            // Highlight the active filter
+            if (currentFilter === 'hi-lo') {
+                document.getElementById('btn-hi-lo').classList.add('active');
+            } else if (currentFilter === 'collectors') {
+                document.getElementById('btn-collectors').classList.add('active');
             }
-            // Sort by practice name
-            filtered.sort((a, b) => a.practice.localeCompare(b.practice));
-            
-            // Render filtered table
-            const tbody = document.querySelector('#accountTable tbody');
-            tbody.innerHTML = '';
-            filtered.forEach(row => {
-                const tr = document.createElement('tr');
-                const territoryColors = {
-                    'Alpha': '#0d6efd',
-                    'Bravo': '#6c757d',
-                    'Charlie': '#ffc107',
-                    'Delta': '#198754',
-                    'Echo': '#fd7e14',
-                    'Foxtrot': '#6610f2'
-                };
-                const territoryColor = territoryColors[row.territory] || '#adb5bd';
-                tr.innerHTML = `
-                    <td><a href="#" class="practice-link" data-practice="${encodeURIComponent(row.practice)}" data-row='${JSON.stringify(row)}'>${row.practice}</a></td>
-                    <td><span class="badge" style="background-color:${territoryColor};color:${['#ffc107','#fd7e14'].includes(territoryColor)?'black':'white'}">${row.territory}</span></td>
-                    <td class="currency">${row.revenue !== undefined ? `$${Math.round(row.revenue).toLocaleString()}` : ''}</td>
-                    <td class="currency">
-                        ${row.net_income !== undefined ? `$${Math.round(row.net_income).toLocaleString()}` : ''}
-                    </td>
-                    <td class="collection-cell">
-                        <span>${row.collection_pct}</span>&nbsp;&nbsp;&nbsp;
-                        ${row.revenue_periods > 0
-                            ? `<span class='badge period-badge-${Math.min(row.revenue_periods,6)}'>${row.revenue_periods}</span>`
-                            : `<span class='badge badge-ta ms-1'>-</span>`}
-                    </td>
-                    <td>${row.sample_count}</td>
-                `;
-                tbody.appendChild(tr);
-            });
         }
     </script>
 

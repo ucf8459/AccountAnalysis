@@ -1127,7 +1127,8 @@ def get_account_table_live():
             # Sales Expense = territory expenses allocated to this practice based on sample count
             territory_expenses = expenses_by_territory.get(territory, Decimal('0'))
             sales_expense = (territory_expenses / territory_samples * sample_count) if territory_samples > 0 else Decimal('0')
-            net_income = profit - sales_expense
+            # Net Income = Revenue - COGS - Sales Expense
+            net_income = revenue - cogs_allocated - sales_expense
             
             # Calculate NIPS (Net Income Per Sample)
             nips = net_income / sample_count if sample_count > 0 else Decimal('0')
@@ -1152,6 +1153,7 @@ def get_account_table_live():
                 'profit': round(float(profit), 2),
                 'sales_expense': round(float(sales_expense), 2),
                 'net_income': round(float(net_income), 2),
+                'ros': round(float(net_income / sales_expense * 100)) if sales_expense > 0 else 0,
                 'collection_pct': collection_pct_str,
                 'revenue_periods': revenue_periods,
                 'rps': round(float(rps), 2),
@@ -1186,6 +1188,9 @@ def get_account_table_live():
 
         
         # Create totals row
+        # Ensure Net Income is calculated correctly: Revenue - COGS - Sales Expense
+        calculated_total_net_income = total_revenue - total_cogs - total_sales_expense
+        
         totals = {
             'practice': 'TOTAL',
             'territory': '',
@@ -1194,13 +1199,14 @@ def get_account_table_live():
             'cogs': round(float(total_cogs_value), 2),
             'profit': round(float(total_profit), 2),
             'sales_expense': round(float(total_sales_expense), 2),
-            'net_income': round(float(total_net_income), 2),
+            'net_income': round(float(calculated_total_net_income), 2),
+            'ros': round(float(calculated_total_net_income / total_sales_expense * 100)) if total_sales_expense > 0 else 0,
             'collection_pct': f"{round(avg_collection_pct, 1)}%",
             'rps': round(float(avg_rps), 2),
             'bps': round(float(avg_bps), 2),
             'gpps': round(float(avg_gpps), 2),
             'eps': round(float(avg_eps), 2),
-            'nips': round(float(avg_nips), 2),
+            'nips': round(float(calculated_total_net_income / total_samples), 2) if total_samples > 0 else 0,
             'collector': '',
             'collector_cost': round(float(avg_collector_cost), 2),
             'sample_count': total_samples
@@ -1557,6 +1563,8 @@ def get_account_metrics():
         # Calculate net income for each practice
         positive_count = 0
         negative_count = 0
+        total_net_income = Decimal('0')
+        total_sales_expense = Decimal('0')
         
         # Get expenses and COGS by territory for the period
         month_year = start_date.strftime('%B %Y')
@@ -1609,6 +1617,10 @@ def get_account_metrics():
             sales_expense = (territory_expenses / territory_samples * sample_count) if territory_samples > 0 else Decimal('0')
             net_income = profit - sales_expense
             
+            # Accumulate totals
+            total_net_income += net_income
+            total_sales_expense += sales_expense
+            
             # Count positive/negative
             if net_income > 0:
                 positive_count += 1
@@ -1620,8 +1632,11 @@ def get_account_metrics():
 
         return jsonify({
             'new_accounts': new_accounts,
+            'total_accounts': len(practice_rows),
             'positive_accounts': positive_count,
             'negative_accounts': negative_count,
+            'total_net_income': float(total_net_income),
+            'total_sales_expense': float(total_sales_expense),
             'period_type': period_type
         }), 200
         
