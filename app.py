@@ -7,7 +7,7 @@ Provides API endpoints for dashboard data and user authentication.
 import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -19,8 +19,7 @@ def create_app():
     
     # Configuration
     app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
-    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-key')
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', 3600))
+
     
     # Database configuration
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
@@ -28,20 +27,11 @@ def create_app():
     
     # Initialize extensions
     CORS(app)
-    jwt = JWTManager(app)
     
     # Register blueprints
-    from app.api.auth import auth_bp
     from app.api.dashboard import dashboard_bp
-    from app.api.etl import etl_bp
-    from app.api.nlp import nlp_bp
-    from app.api.qbo import qbo_bp
     
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
-    app.register_blueprint(etl_bp, url_prefix='/api/etl')
-    app.register_blueprint(nlp_bp, url_prefix='/api/nlp')
-    app.register_blueprint(qbo_bp, url_prefix='/api/qbo')
     
     # Health check endpoint
     @app.route('/health')
@@ -59,18 +49,9 @@ def create_app():
             'version': '1.0.0',
             'endpoints': {
                 'health': '/health',
-                'auth': '/api/auth',
-                'dashboard': '/api/dashboard',
-                'etl': '/api/etl',
-                'nlp': '/api/nlp',
-                'qbo': '/api/qbo'
+                'dashboard': '/api/dashboard'
             }
         })
-    
-    # Authentication page
-    @app.route('/auth')
-    def auth_page():
-        return app.send_static_file('auth.html')
     
     # Dashboard page
     @app.route('/dashboard')

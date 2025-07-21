@@ -73,6 +73,27 @@
     </style>
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white rounded dashboard-nav mb-4">
+        <a class="navbar-brand fw-bold" href="/dashboard">Financial Dashboard</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link" href="/dashboard" onclick="showSection && showSection('company'); return false;">Company</a></li>
+                <li class="nav-item"><a class="nav-link" href="/dashboard" onclick="showSection && showSection('territories'); return false;">Territories</a></li>
+                <li class="nav-item"><a class="nav-link active" href="/account-table">Account Table</a></li>
+            </ul>
+            <div class="navbar-nav">
+                <div class="nav-item d-flex align-items-center">
+                    <label for="periodSelector" class="form-label me-2 mb-0">Time Period:</label>
+                    <select id="periodSelector" class="form-select d-inline-block w-auto">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+        </div>
+    </nav>
     <div id="loginModal" class="modal" tabindex="-1" style="display:none; background:rgba(0,0,0,0.5); position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2000;">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -100,12 +121,6 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>Account Analysis</h2>
             <div class="d-flex gap-3">
-                <div class="period-selector">
-                    <label for="periodSelector" class="form-label me-2">Time Period:</label>
-                    <select id="periodSelector" class="form-select d-inline-block w-auto">
-                        <!-- Options will be populated by JavaScript -->
-                    </select>
-                </div>
                 <div class="territory-selector">
                     <label for="territorySelector" class="form-label me-2">Territory:</label>
                     <select id="territorySelector" class="form-select d-inline-block w-auto">
@@ -289,6 +304,7 @@
         
         // Render table with current data and sort
         function renderTable() {
+            console.log('Rendering table with data:', currentData.length, 'rows');
             const tbody = document.querySelector('#accountTable tbody');
             tbody.innerHTML = '';
             
@@ -382,6 +398,7 @@
             // Render data rows
             let rowCount = 0;
             let hiLoSeparatorDrawn = false;
+            console.log('Rendering', displayData.length, 'rows');
             displayData.forEach((row, idx) => {
                 const tr = document.createElement('tr');
                 const deltaClass = row.nips >= 0 ? 'delta-positive' : 'delta-negative';
@@ -461,16 +478,22 @@
                 table.style.display = 'none';
                 errorDiv.style.display = 'none';
                 
+                console.log('Loading account table for period:', periodType, 'territory:', territory);
+                
                 const response = await fetch(`/api/dashboard/account-table-live?period_type=${periodType}`);
                 if (!response.ok) throw new Error('Failed to fetch data');
                 
                 const data = await response.json();
+                console.log('Received data:', data);
+                console.log('Number of accounts:', data.accounts ? data.accounts.length : 0);
                 
                 // Filter accounts by territory if not "all"
                 let filteredAccounts = data.accounts;
                 if (territory !== 'all') {
                     filteredAccounts = data.accounts.filter(account => account.territory === territory);
                 }
+                
+                console.log('Filtered accounts:', filteredAccounts.length);
                 
                 // Store current data and totals
                 currentData = filteredAccounts;
@@ -483,6 +506,7 @@
                 loading.style.display = 'none';
                 table.style.display = '';
             } catch (err) {
+                console.error('Error loading account table:', err);
                 loading.style.display = 'none';
                 errorDiv.textContent = err.message;
                 errorDiv.style.display = '';
@@ -558,7 +582,7 @@
             }
         });
         
-        // Add event listeners for filter buttons
+        // Initialize when DOM is loaded
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM Content Loaded');
             
@@ -568,6 +592,7 @@
             // Load initial data with the most recent month
             const periodSelector = document.getElementById('periodSelector');
             const initialPeriod = periodSelector.value;
+            console.log('Initial period:', initialPeriod);
             loadAccountTable(initialPeriod, 'all');
 
             // Add event listeners for collector cost inputs
@@ -750,30 +775,8 @@
             const loginForm = document.getElementById('loginForm');
             if (loginForm) {
               loginForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const username = document.getElementById('loginUsername').value;
-                const password = document.getElementById('loginPassword').value;
-                const errorDiv = document.getElementById('loginError');
-                errorDiv.style.display = 'none';
-                try {
-                  const res = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                  });
-                  const data = await res.json();
-                  if (res.ok && data.access_token) {
-                    localStorage.setItem('access_token', data.access_token);
-                    hideLoginModal();
-                    location.reload();
-                  } else {
-                    errorDiv.textContent = data.error || 'Login failed.';
-                    errorDiv.style.display = 'block';
-                  }
-                } catch (err) {
-                  errorDiv.textContent = 'Login failed.';
-                  errorDiv.style.display = 'block';
-                }
+                                  e.preventDefault();
+                  // Authentication removed - no longer needed
               });
             }
 
@@ -781,18 +784,9 @@
             updateFilterButtonStates();
         });
 
-        function showLoginModal() {
-          document.getElementById('loginModal').style.display = 'block';
-        }
-        function hideLoginModal() {
-          document.getElementById('loginModal').style.display = 'none';
-        }
-        function isLoggedIn() {
-          return !!localStorage.getItem('access_token');
-        }
-
         // Function to populate period selector with months
         function populatePeriodSelector() {
+            console.log('Populating period selector...');
             const periodSelector = document.getElementById('periodSelector');
             const months = [];
             const monthNames = [
@@ -841,6 +835,8 @@
                 }
                 periodSelector.appendChild(option);
             });
+            console.log('Period selector populated with', months.length, 'options');
+            console.log('Selected period:', periodSelector.value);
         }
 
         // Function to update collector cost
@@ -893,8 +889,6 @@
             currentFilter = filterType;
             renderTable();
         }
-
-
 
         // Add this function to update filter button states
         function updateFilterButtonStates() {
