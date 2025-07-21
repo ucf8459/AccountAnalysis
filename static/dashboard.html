@@ -100,20 +100,30 @@
                     <option value="march_2025">March 2025</option>
                     <option value="february_2025">February 2025</option>
                     <option value="january_2025">January 2025</option>
-                    <option value="december_2024">December 2024</option>
-                    <option value="november_2024">November 2024</option>
-                    <option value="october_2024">October 2024</option>
-                    <option value="september_2024">September 2024</option>
-                    <option value="august_2024">August 2024</option>
-                    <option value="july_2024">July 2024</option>
                     <option value="ytd">Year-to-Date</option>
-                    <option value="q1_2025">Q1 2025</option>
-                    <option value="q2_2025">Q2 2025</option>
-                    <option value="q3_2025">Q3 2025</option>
-                    <option value="q4_2025">Q4 2025</option>
                 </select>
             </div>
         </div>
+        <!-- Consistent summary row for SPD, BPS, RPS, COGS/Sample -->
+        <div class="mb-3 d-flex gap-4 align-items-center" style="justify-content: flex-end;">
+            <div class="text-center">
+                <div class="fw-bold text-info">SPD</div>
+                <div id="spd-metric" class="fs-5 fw-bold">-</div>
+            </div>
+            <div class="text-center">
+                <div class="fw-bold text-primary">BPS</div>
+                <div id="bps-metric" class="fs-5 fw-bold">-</div>
+            </div>
+            <div class="text-center">
+                <div class="fw-bold text-success">RPS</div>
+                <div id="rps-metric" class="fs-5 fw-bold">-</div>
+            </div>
+            <div class="text-center">
+                <div class="fw-bold text-danger">CPS</div>
+                <div id="cps-metric" class="fs-5 fw-bold">-</div>
+            </div>
+        </div>
+        <!-- Main KPI Cards (leave as is) -->
         <div class="row row-cols-1 row-cols-md-4 g-4 mb-4">
             <div class="col">
                 <div class="card kpi-card text-center bg-light">
@@ -144,34 +154,6 @@
                     <div class="card-body">
                         <div class="kpi-value" id="net-operating-income">$1,889,938</div>
                         <div class="text-muted">Net Operating Income</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Additional KPI Metrics -->
-        <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
-            <div class="col">
-                <div class="card kpi-card text-center bg-light">
-                    <div class="card-body">
-                        <div class="kpi-value" id="spd">39,098</div>
-                        <div class="text-muted">Samples Per Day (SPD)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card kpi-card text-center bg-light">
-                    <div class="card-body">
-                        <div class="kpi-value" id="bps">$0.58</div>
-                        <div class="text-muted">Billing Per Sample (BPS)</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card kpi-card text-center bg-light">
-                    <div class="card-body">
-                        <div class="kpi-value" id="rps">$0.58</div>
-                        <div class="text-muted">Revenue Per Sample (RPS)</div>
                     </div>
                 </div>
             </div>
@@ -451,23 +433,24 @@ function updateKPICards(financialSummary) {
     if (totalExpenses) totalExpenses.textContent = `$${financialSummary.total_expenses.toLocaleString()}`;
     if (netOperatingIncome) netOperatingIncome.textContent = `$${financialSummary.net_operating_income.toLocaleString()}`;
     
-    // Update additional KPI metrics
-    const spd = document.getElementById('spd');
-    const bps = document.getElementById('bps');
-    const rps = document.getElementById('rps');
-    
-    if (spd && financialSummary.spd) {
-        spd.textContent = `${financialSummary.spd.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+    // Update new summary row for SPD, BPS, RPS, COGS/Sample
+    const spdMetric = document.getElementById('spd-metric');
+    const bpsMetric = document.getElementById('bps-metric');
+    const rpsMetric = document.getElementById('rps-metric');
+    const cpsMetric = document.getElementById('cps-metric');
+    if (spdMetric && financialSummary.spd !== undefined) {
+        spdMetric.textContent = `${financialSummary.spd.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
     }
-    if (bps && financialSummary.bps) {
-        bps.textContent = `$${financialSummary.bps.toFixed(2)}`;
+    if (bpsMetric && financialSummary.bps !== undefined) {
+        bpsMetric.textContent = `$${financialSummary.bps.toFixed(2)}`;
     }
-    if (rps && financialSummary.rps) {
-        rps.textContent = `$${financialSummary.rps.toFixed(2)}`;
+    if (rpsMetric && financialSummary.rps !== undefined) {
+        rpsMetric.textContent = `$${financialSummary.rps.toFixed(2)}`;
+    }
+    if (cpsMetric && financialSummary.cps !== undefined) {
+        cpsMetric.textContent = `$${financialSummary.cps.toFixed(2)}`;
     }
 }
-
-
 
 // Function to update revenue chart
 function updateRevenueChart(monthlyData) {
@@ -614,12 +597,6 @@ function populatePeriodSelector() {
         { value: 'march_2025', text: 'March 2025' },
         { value: 'february_2025', text: 'February 2025' },
         { value: 'january_2025', text: 'January 2025' },
-        { value: 'december_2024', text: 'December 2024' },
-        { value: 'november_2024', text: 'November 2024' },
-        { value: 'october_2024', text: 'October 2024' },
-        { value: 'september_2024', text: 'September 2024' },
-        { value: 'august_2024', text: 'August 2024' },
-        { value: 'july_2024', text: 'July 2024' },
         { value: 'ytd', text: 'Year-to-Date' },
         { value: 'q1_2025', text: 'Q1 2025' },
         { value: 'q2_2025', text: 'Q2 2025' },
@@ -808,5 +785,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 </body>
-</html> 
 </html> 

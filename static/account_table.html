@@ -788,49 +788,21 @@
         function populatePeriodSelector() {
             console.log('Populating period selector...');
             const periodSelector = document.getElementById('periodSelector');
-            const months = [];
-            const monthNames = [
-                'January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'
+            const months = [
+                { value: 'june_2025', displayName: 'June 2025' },
+                { value: 'may_2025', displayName: 'May 2025' },
+                { value: 'april_2025', displayName: 'April 2025' },
+                { value: 'march_2025', displayName: 'March 2025' },
+                { value: 'february_2025', displayName: 'February 2025' },
+                { value: 'january_2025', displayName: 'January 2025' },
+                { value: 'ytd', displayName: 'Year-to-Date' }
             ];
-            
-            // Get current date
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth(); // 0-based
-            
-            // Start from the most recent full month (previous month)
-            let year = currentYear;
-            let month = currentMonth - 1;
-            if (month < 0) {
-                month = 11;
-                year--;
-            }
-            // Only go back to March 2025 (inclusive)
-            while ((year > 2025) || (year === 2025 && month >= 2)) {
-                const monthName = monthNames[month];
-                const value = `${monthName.toLowerCase()}_${year}`;
-                const displayName = `${monthName} ${year}`;
-                months.push({ value, displayName, year, month });
-                // Go back one month
-                month--;
-                if (month < 0) {
-                    month = 11;
-                    year--;
-                }
-            }
-            // Add March 2025 if not already included
-            if (!months.some(m => m.value === 'march_2025')) {
-                months.push({ value: 'march_2025', displayName: 'March 2025', year: 2025, month: 2 });
-            }
-            // Clear existing options
             periodSelector.innerHTML = '';
-            // Add options
             months.forEach((monthData, index) => {
                 const option = document.createElement('option');
                 option.value = monthData.value;
                 option.textContent = monthData.displayName;
-                if (index === 0) { // First option (most recent) is selected by default
+                if (index === 0) {
                     option.selected = true;
                 }
                 periodSelector.appendChild(option);
